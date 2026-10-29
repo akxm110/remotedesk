@@ -887,7 +887,8 @@ pub fn enable_directx_capture() -> bool {
 #[cfg(windows)]
 pub fn allow_d3d_render() -> bool {
     use base::config::keys::OPTION_ALLOW_D3D_RENDER as OPTION;
-    option2bool(OPTION, &hbb_common::config::LocalConfig::get_option(OPTION))
+    let v = hbb_common::config::LocalConfig::get_option(OPTION);
+    v.is_empty() || option2bool(OPTION, &v)
 }
 
 pub const BR_BEST: f32 = 1.5;

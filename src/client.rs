@@ -3411,7 +3411,7 @@ impl LoginConfigHandler {
             msg.custom_image_quality = quality << 8;
             #[cfg(feature = "flutter")]
             if let Some(custom_fps) = self.options.get("custom-fps") {
-                let mut custom_fps = custom_fps.parse().unwrap_or(30);
+                let mut custom_fps = custom_fps.parse().unwrap_or(45);
                 if !allow_more && custom_fps > 30 {
                     custom_fps = 30;
                 }

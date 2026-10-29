@@ -3578,6 +3578,20 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
             )),
         if (!isMacOS && !isWebDesktop)
           Obx(() => Offstage(
+                offstage: isFullscreen.isTrue,
+                child: buttonWrapper(
+                  () => stateGlobal.setFullscreenAllMonitors(),
+                  Tooltip(
+                    message: '내 모니터 전체에 전체화면',
+                    child: Icon(
+                      Icons.desktop_windows_outlined,
+                      size: iconSize,
+                    ),
+                  ),
+                ),
+              )),
+        if (!isMacOS && !isWebDesktop)
+          Obx(() => Offstage(
                 offstage: isFullscreen.isFalse,
                 child: buttonWrapper(
                   widget.setMinimize,

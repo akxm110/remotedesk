@@ -1,3 +1,5 @@
+import 'dart:ui' show Rect;
+
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:get/get.dart';
@@ -82,9 +84,46 @@ class StateGlobal {
       _showTabBar.value = !_fullscreen.value;
       if (isWebDesktop) {
         procFullscreenWeb();
+      } else if (!v && _spanRestoreFrame != null) {
+        _exitSpanFullscreen();
       } else {
         procFullscreenNative(procWnd);
       }
+    }
+  }
+
+  // Frame to restore after fullscreen that spans all local monitors.
+  Rect? _spanRestoreFrame;
+
+  Future<void> setFullscreenAllMonitors() async {
+    if (_fullscreen.isTrue || isWebDesktop) {
+      return;
+    }
+    final rects = await getScreenRectList();
+    if (rects.length < 2) {
+      setFullscreen(true);
+      return;
+    }
+    var union = rects.first;
+    for (final r in rects.skip(1)) {
+      union = union.expandToInclude(r);
+    }
+    final wc = WindowController.fromWindowId(windowId);
+    _spanRestoreFrame = await wc.getFrame();
+    _fullscreen.value = true;
+    _showTabBar.value = false;
+    refreshResizeEdgeSize();
+    _windowBorderWidth.value = 0;
+    await wc.setFrame(union);
+  }
+
+  _exitSpanFullscreen() {
+    final frame = _spanRestoreFrame;
+    _spanRestoreFrame = null;
+    refreshResizeEdgeSize();
+    _windowBorderWidth.value = kWindowBorderWidth;
+    if (frame != null) {
+      WindowController.fromWindowId(windowId).setFrame(frame);
     }
   }
 

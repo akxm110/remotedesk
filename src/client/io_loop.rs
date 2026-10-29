@@ -1388,9 +1388,9 @@ impl<T: InvokeUiSession> Remote<T> {
         });
         let custom_fps = self.handler.lc.read().unwrap().custom_fps.clone();
         let custom_fps = custom_fps.lock().unwrap().clone();
-        let mut custom_fps = custom_fps.unwrap_or(30);
+        let mut custom_fps = custom_fps.unwrap_or(45);
         if custom_fps < 5 || custom_fps > 120 {
-            custom_fps = 30;
+            custom_fps = 45;
         }
         let inactive_threshold = 15;
         let max_queue_len = self
@@ -1410,7 +1410,7 @@ impl<T: InvokeUiSession> Remote<T> {
             return;
         };
         let mut limited_fps = if direct {
-            min_decode_fps * 9 / 10 // 30 got 27
+            min_decode_fps
         } else {
             min_decode_fps * 4 / 5 // 30 got 24
         };
