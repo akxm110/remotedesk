@@ -120,6 +120,8 @@ class FfiModel with ChangeNotifier {
   Timer? _timer;
   Timer? _restartReconnectDelayTimer;
   var _reconnects = 1;
+  var _punchRetries = 0;
+  static const kMaxPunchRetries = 5;
   DateTime? _offlineReconnectStartTime;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
@@ -965,6 +967,9 @@ class FfiModel with ChangeNotifier {
       if (!hasRetry) {
         hasRetry = shouldAutoRetryOnOffline(type, title, text);
       }
+      if (!hasRetry) {
+        hasRetry = shouldAutoRetryOnPunchFail(type, title, text);
+      }
       showMsgBox(sessionId, type, title, text, link, hasRetry, dialogManager);
     }
   }
@@ -1019,6 +1024,27 @@ class FfiModel with ChangeNotifier {
           return true;
         }
       }
+    }
+    return false;
+  }
+
+  /// Without a relay server, a direct connection between some NATs only
+  /// succeeds on some attempts, so retry a few times with a short delay.
+  bool shouldAutoRetryOnPunchFail(
+    String type,
+    String title,
+    String text,
+  ) {
+    if (type == 'error' &&
+        title == 'Connection Error' &&
+        (text.contains('Failed to connect via relay server') ||
+            text.contains('Failed to make direct connection')) &&
+        _punchRetries < kMaxPunchRetries) {
+      _punchRetries++;
+      if (_reconnects > 2) {
+        _reconnects = 2;
+      }
+      return true;
     }
     return false;
   }
@@ -1093,6 +1119,7 @@ class FfiModel with ChangeNotifier {
     } else {
       _reconnects = 1;
       _offlineReconnectStartTime = null;
+      _punchRetries = 0;
     }
   }
 
@@ -1447,6 +1474,7 @@ class FfiModel with ChangeNotifier {
       if (displays.isNotEmpty) {
         _reconnects = 1;
         _offlineReconnectStartTime = null;
+        _punchRetries = 0;
         resetRestartReconnectState();
         waitForFirstImage.value = true;
         isRefreshing = false;

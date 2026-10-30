@@ -3580,7 +3580,10 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
           Obx(() => Offstage(
                 offstage: isFullscreen.isTrue,
                 child: buttonWrapper(
-                  () => stateGlobal.setFullscreenAllMonitors(),
+                  () async {
+                    await stateGlobal.setFullscreenAllMonitors();
+                    _fitRemoteToWindow(widget.ffi);
+                  },
                   Tooltip(
                     message: '내 모니터 전체에 전체화면',
                     child: Icon(
@@ -3590,6 +3593,16 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                   ),
                 ),
               )),
+        buttonWrapper(
+          () => _fitRemoteToWindow(widget.ffi),
+          Tooltip(
+            message: '화면 맞춤 (창에 딱 맞게 확대/축소)',
+            child: Icon(
+              Icons.fit_screen_outlined,
+              size: iconSize,
+            ),
+          ),
+        ),
         if (!isMacOS && !isWebDesktop)
           Obx(() => Offstage(
                 offstage: isFullscreen.isFalse,
@@ -3804,4 +3817,13 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
       );
     });
   }
+}
+
+// Scale the remote image to fit the window so it no longer pans when the
+// local and remote screen sizes differ slightly.
+void _fitRemoteToWindow(FFI ffi) {
+  bind
+      .sessionSetViewStyle(
+          sessionId: ffi.sessionId, value: kRemoteViewStyleAdaptive)
+      .then((_) => ffi.canvasModel.updateViewStyle());
 }
