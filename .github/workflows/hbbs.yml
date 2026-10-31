@@ -35,13 +35,15 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-
+      # Static musl build for the busybox-based server image. hbb_common pulls in native-tls,
+      # so OpenSSL is compiled in from source rather than looked up on the system.
       - name: Build
         working-directory: srv
-        run: cross build --release --target x86_64-unknown-linux-musl --bin hbbs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          cargo add openssl@0.10 --features vendored
+          cargo build --release --target x86_64-unknown-linux-musl --bin hbbs
 
       - name: Publish
         env:
