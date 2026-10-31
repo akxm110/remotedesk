@@ -1,0 +1,55 @@
+name: RemoteDesk hbbs build
+
+# The open-source rendezvous server with server/hbbs-punch.patch applied, so it forwards the UDP
+# and IPv6 punch fields. Published as a release asset the server VM can download.
+on:
+  workflow_dispatch:
+  push:
+    branches: [remotedesk]
+    paths:
+      - server/**
+      - .github/workflows/hbbs.yml
+
+permissions:
+  contents: write
+
+env:
+  SERVER_COMMIT: 873230e35a8805de7fd057e7eb763c46f7a174ef
+  RELEASE_TAG: hbbs-punch
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout rustdesk-server
+        run: |
+          git clone https://github.com/rustdesk/rustdesk-server.git srv
+          cd srv
+          git checkout "$SERVER_COMMIT"
+          git submodule update --init --depth 1
+          git apply ../server/hbbs-punch.patch
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build
+        working-directory: srv
+        run: cross build --release --target x86_64-unknown-linux-musl --bin hbbs
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp srv/target/x86_64-unknown-linux-musl/release/hbbs hbbs
+          sha256sum hbbs | tee hbbs.sha256
+          gh release view "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                 --title "hbbs with UDP/IPv6 punch forwarding" --notes "Built from rustdesk-server $SERVER_COMMIT + server/hbbs-punch.patch"
+          gh release upload "$RELEASE_TAG" hbbs hbbs.sha256 -R "$GITHUB_REPOSITORY" --clobber

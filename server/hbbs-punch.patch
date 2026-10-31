@@ -1,0 +1,75 @@
+diff --git a/src/rendezvous_server.rs b/src/rendezvous_server.rs
+index 78a303d..4f0a9d1 100644
+--- a/src/rendezvous_server.rs
++++ b/src/rendezvous_server.rs
+@@ -477,7 +477,20 @@ impl RendezvousServer {
+                     // The supported client path sends PunchHoleRequest over TCP/WS.
+                 }
+                 Some(rendezvous_message::Union::PunchHoleSent(phs)) => {
+-                    // UDP PunchHoleSent is intentionally unsupported to avoid UDP reflection/amplification
++                    // UDP punch: the peer's UDP mapping is what the controller needs. The answer
++                    // goes only to the controller's waiting TCP connection, so nothing is
++                    // reflected over UDP.
++                    allow_err!(self.handle_hole_sent_udp(phs, addr).await);
++                }
++                Some(rendezvous_message::Union::TestNatRequest(_)) => {
++                    // The controller learns the public port of its UDP punch socket here. The
++                    // reply is no larger than the request.
++                    let mut msg_out = RendezvousMessage::new();
++                    msg_out.set_test_nat_response(TestNatResponse {
++                        port: addr.port() as _,
++                        ..Default::default()
++                    });
++                    socket.send(&msg_out, addr).await?;
+                 }
+                 Some(rendezvous_message::Union::LocalAddr(la)) => {
+                     // UDP LocalAddr is intentionally unsupported to avoid UDP reflection/amplification
+@@ -672,6 +685,8 @@ impl RendezvousServer {
+             socket_addr: AddrMangle::encode(addr).into(),
+             pk: self.get_pk(&phs.version, phs.id).await,
+             relay_server: phs.relay_server.clone(),
++            upnp_port: phs.upnp_port,
++            socket_addr_v6: phs.socket_addr_v6,
+             ..Default::default()
+         };
+         if let Ok(t) = phs.nat_type.enum_value() {
+@@ -686,6 +701,28 @@ impl RendezvousServer {
+         Ok(())
+     }
+ 
++    #[inline]
++    async fn handle_hole_sent_udp(&mut self, phs: PunchHoleSent, addr: SocketAddr) -> ResultType<()> {
++        let addr_a = AddrMangle::decode(&phs.socket_addr);
++        log::debug!("UDP punch hole response to {:?} from {:?}", &addr_a, &addr);
++        let mut msg_out = RendezvousMessage::new();
++        let mut p = PunchHoleResponse {
++            socket_addr: AddrMangle::encode(addr).into(),
++            pk: self.get_pk(&phs.version, phs.id).await,
++            relay_server: phs.relay_server.clone(),
++            is_udp: true,
++            upnp_port: phs.upnp_port,
++            socket_addr_v6: phs.socket_addr_v6,
++            ..Default::default()
++        };
++        if let Ok(t) = phs.nat_type.enum_value() {
++            p.set_nat_type(t);
++        }
++        msg_out.set_punch_hole_response(p);
++        self.send_to_tcp(msg_out, addr_a).await;
++        Ok(())
++    }
++
+     #[inline]
+     async fn handle_local_addr<'a>(
+         &mut self,
+@@ -807,6 +844,10 @@ impl RendezvousServer {
+                     socket_addr,
+                     nat_type: ph.nat_type,
+                     relay_server,
++                    udp_port: ph.udp_port,
++                    force_relay: ph.force_relay,
++                    upnp_port: ph.upnp_port,
++                    socket_addr_v6: ph.socket_addr_v6,
+                     ..Default::default()
+                 });
+             }
