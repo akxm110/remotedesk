@@ -15,6 +15,7 @@ typedef char** (*FUNC_RUSTDESK_CORE_MAIN)(int*);
 typedef void (*FUNC_RUSTDESK_FREE_ARGS)( char**, int);
 typedef int (*FUNC_RUSTDESK_GET_APP_NAME)(wchar_t*, int);
 typedef int (*FUNC_RUSTDESK_IS_DISABLE_INSTALLATION)();
+typedef int (*FUNC_RUSTDESK_IS_NEWER_THAN_INSTALLED)();
 /// Note: `--server`, `--service` are already handled in [core_main.rs].
 const std::vector<std::string> parameters_white_list = {"--install", "--cm"};
 
@@ -101,6 +102,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
           std::find(command_line_arguments.begin(),
                     command_line_arguments.end(),
                     whitelist_param) != command_line_arguments.end();
+    }
+    // A newer copy shows its own window with the upgrade card instead of raising the old one.
+    FUNC_RUSTDESK_IS_NEWER_THAN_INSTALLED rustdesk_is_newer_than_installed =
+        (FUNC_RUSTDESK_IS_NEWER_THAN_INSTALLED)GetProcAddress(hInstance, "rustdesk_is_newer_than_installed");
+    if (command_line_arguments.empty() && rustdesk_is_newer_than_installed &&
+        rustdesk_is_newer_than_installed() != 0) {
+      allow_multiple_instances = true;
     }
     if (!allow_multiple_instances) {
       if (!command_line_arguments.empty()) {

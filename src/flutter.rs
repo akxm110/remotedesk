@@ -153,6 +153,16 @@ pub extern "C" fn rustdesk_is_disable_installation() -> c_int {
     hbb_common::config::is_disable_installation() as c_int
 }
 
+/// A newer build started while an older installed one is running must open its own window, or
+/// the runner only raises the old window and its "Click to upgrade" card is never seen.
+#[cfg(windows)]
+#[no_mangle]
+pub extern "C" fn rustdesk_is_newer_than_installed() -> c_int {
+    (!hbb_common::config::is_disable_installation()
+        && crate::platform::is_installed()
+        && crate::ui_interface::is_installed_lower_version()) as c_int
+}
+
 // https://gist.github.com/iskakaushik/1c5b8aa75c77479c33c4320913eebef6
 #[cfg(windows)]
 fn rust_args_to_c_args(args: Vec<String>, outlen: *mut c_int) -> *mut *mut c_char {
