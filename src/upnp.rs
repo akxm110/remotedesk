@@ -119,8 +119,19 @@ fn read_description(location: &str) -> ResultType<Igd> {
     bail!("no WAN connection service at {}", location)
 }
 
+// Windows sends multicast out of the lowest-metric interface, often a Wi-Fi Direct or VPN
+// adapter that has no router behind it, so the search is sent from the internet-facing address.
+fn internet_ip() -> Option<IpAddr> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    Some(socket.local_addr().ok()?.ip())
+}
+
 fn discover() -> ResultType<Igd> {
-    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    let socket = match internet_ip() {
+        Some(ip) => UdpSocket::bind((ip, 0))?,
+        None => UdpSocket::bind("0.0.0.0:0")?,
+    };
     socket.set_read_timeout(Some(Duration::from_secs(3)))?;
     let request = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n\r\n";
     socket.send_to(request.as_bytes(), "239.255.255.250:1900")?;
