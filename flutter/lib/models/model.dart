@@ -1038,6 +1038,7 @@ class FfiModel with ChangeNotifier {
     if (type == 'error' &&
         title == 'Connection Error' &&
         (text.contains('Failed to connect via relay server') ||
+            text.contains('Failed to connect to relay server') ||
             text.contains('Failed to make direct connection')) &&
         _punchRetries < kMaxPunchRetries) {
       _punchRetries++;

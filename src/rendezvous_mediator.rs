@@ -1066,6 +1066,9 @@ impl RendezvousMediator {
             ph.control_permissions.clone().into_option(),
             ph.controlled_context.clone().into_option(),
         );
+        if !local_proxy {
+            crate::upnp::spawn_reverse_connect(peer_addr, server.clone(), meta.clone());
+        }
         // The controller's force_relay alone does not say whether ICE must be Relay-only; its
         // offer envelope does. `ice_policy: "all"` means the relay was forced by the transport
         // (ws), so answer with full ICE and let a direct pair form.

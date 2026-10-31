@@ -906,6 +906,12 @@ impl Client {
         }
         // Stop UDP NAT test task if still running
         stop_udp_tx.map(|tx| tx.send(()));
+        // Bound before the request goes out, so a peer that connects back at once is queued.
+        let mut reverse_listener = if use_ws() || Config::is_proxy() {
+            None
+        } else {
+            crate::upnp::reverse_listener().await
+        };
         let mut msg_out = RendezvousMessage::new();
         let mut ipv6 = ipv6
             .take()
@@ -1134,6 +1140,19 @@ impl Client {
                             }
                             .boxed(),
                         );
+                        if let Some(listener) = reverse_listener.take() {
+                            connect_futures.push(
+                                async move {
+                                    // Same text as the relay failure it races, so the message
+                                    // shown does not depend on which attempt failed last.
+                                    let conn = crate::upnp::accept_reverse(listener)
+                                        .await
+                                        .with_context(|| "Failed to connect to relay server")?;
+                                    Ok((conn, None, "Reverse", true))
+                                }
+                                .boxed(),
+                            );
+                        }
                         // Keep the adopted offerer in a guard that stays armed across the race AND
                         // secure_connection, so cancellation of this future by the outer race (or a
                         // secure-handshake failure) closes the pc instead of leaking it. It is
@@ -1376,6 +1395,7 @@ impl Client {
                 webrtc_bridge_stop,
                 allow_tcp_punch,
                 &punch_type,
+                reverse_listener,
             )
             .await?,
             (feedback, rendezvous_server),
@@ -1405,6 +1425,7 @@ impl Client {
         webrtc_bridge_stop: Option<oneshot::Sender<()>>,
         allow_tcp_punch: bool,
         punch_type: &str,
+        reverse_listener: Option<hbb_common::tokio::net::TcpListener>,
     ) -> ResultType<(
         Stream,
         bool,
@@ -1480,6 +1501,15 @@ impl Client {
                     let (conn, kcp, typ) =
                         udp_nat_connect(udp_socket_v6, "IPv6", connect_timeout).await?;
                     Ok((conn, kcp, typ, true))
+                }
+                .boxed(),
+            );
+        }
+        if let Some(listener) = reverse_listener {
+            direct_futures.push(
+                async move {
+                    let conn = crate::upnp::accept_reverse(listener).await?;
+                    Ok((conn, None, "Reverse", true))
                 }
                 .boxed(),
             );

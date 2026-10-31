@@ -142,6 +142,9 @@ pub fn core_main() -> Option<Vec<String>> {
         } else if args[0] == "--build-date" {
             println!("{}", crate::BUILD_DATE);
             return None;
+        } else if args[0] == "--upnp-test" && args.len() > 1 {
+            crate::upnp::self_test(&args[1]);
+            return None;
         }
     }
     #[cfg(windows)]
