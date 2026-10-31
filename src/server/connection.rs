@@ -1975,6 +1975,7 @@ impl Connection {
                 "supported_privacy_mode_impl".into(),
                 json!(privacy_mode::get_supported_privacy_mode_impl()),
             );
+            platform_additions.insert("wol_macs".into(), json!(crate::lan::get_wol_macs()));
         }
         #[cfg(target_os = "macos")]
         {
@@ -3899,6 +3900,8 @@ impl Connection {
                             }
                         }
                     }
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    Some(misc::Union::WakeOnLan(w)) => crate::lan::send_wol_to_macs(w.macs),
                     #[cfg(windows)]
                     Some(misc::Union::ElevationRequest(r)) => match r.union {
                         Some(elevation_request::Union::Direct(_)) => {

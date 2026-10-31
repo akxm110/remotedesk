@@ -1431,6 +1431,59 @@ void showRestartRemoteDevice(PeerInfo pi, String id, SessionID sessionId,
   if (res == true) bind.sessionRestartRemoteDevice(sessionId: sessionId);
 }
 
+// A powered-off PC can only be woken from its own LAN, so the connected peer
+// sends the magic packet for it.
+void showWakeOnLan(
+    String id, SessionID sessionId, OverlayDialogManager dialogManager) {
+  List<dynamic> peers = [];
+  try {
+    peers = jsonDecode(bind.mainGetWolPeers()) as List<dynamic>;
+  } catch (_) {}
+  peers = peers.where((p) => p['id'] != id).toList();
+  dialogManager.show((setState, close, context) {
+    final Widget content;
+    if (peers.isEmpty) {
+      content = Text('켤 수 있는 PC가 아직 없습니다.\n\n'
+          '켜려는 PC가 켜져 있을 때 한 번 접속해 두면 여기에 나타납니다.\n'
+          '(양쪽 PC 모두 새 버전이 설치되어 있어야 합니다)');
+    } else {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('지금 접속한 PC와 같은 공유기에 연결된 PC만 켤 수 있습니다.'),
+          const SizedBox(height: 8),
+          ...peers.map((p) {
+            final String peerId = p['id'] ?? '';
+            final String alias = p['alias'] ?? '';
+            final String hostname = p['hostname'] ?? '';
+            final name = alias.isNotEmpty ? alias : hostname;
+            return ListTile(
+              leading: const Icon(Icons.power_settings_new),
+              title: Text(name.isEmpty ? peerId : name),
+              subtitle: Text(peerId),
+              onTap: () {
+                close();
+                final sent = bind.sessionWakeOnLan(
+                    sessionId: sessionId, peerId: peerId);
+                showToast(sent
+                    ? '켜기 신호를 보냈습니다. 1~2분 뒤에 접속해 보세요.'
+                    : '이 PC의 네트워크 정보가 없습니다.');
+              },
+            );
+          }),
+        ],
+      );
+    }
+    return CustomAlertDialog(
+      title: Text('같은 네트워크의 PC 켜기'),
+      content: SizedBox(width: 380, child: SingleChildScrollView(child: content)),
+      actions: [dialogButton('Close', onPressed: close, isOutline: true)],
+      onCancel: close,
+    );
+  });
+}
+
 showSetOSPassword(
   SessionID sessionId,
   bool login,

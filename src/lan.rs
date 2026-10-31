@@ -104,6 +104,41 @@ pub fn send_wol(id: String) {
     }
 }
 
+/// MACs of the adapters that reach the router: a powered-off machine can only be
+/// woken through those, by another machine on the same LAN.
+pub fn get_wol_macs() -> String {
+    let mut macs: Vec<String> = default_net::get_interfaces()
+        .into_iter()
+        .filter(|i| i.gateway.is_some() && !i.ipv4.is_empty())
+        .filter_map(|i| i.mac_addr.map(|m| m.address()))
+        .filter(|m| m != "00:00:00:00:00:00")
+        .collect();
+    macs.sort();
+    macs.dedup();
+    macs.join(",")
+}
+
+pub fn send_wol_to_macs(mut macs: Vec<String>) {
+    macs.truncate(16);
+    std::thread::spawn(move || {
+        let interfaces = default_net::get_interfaces();
+        // Repeat, since a single broadcast is sometimes dropped by Wi-Fi or switches.
+        for _ in 0..3 {
+            for mac in &macs {
+                if let Ok(mac_addr) = mac.parse() {
+                    for interface in &interfaces {
+                        for ipv4 in &interface.ipv4 {
+                            allow_err!(wol::send_wol(mac_addr, None, Some(IpAddr::V4(ipv4.addr))));
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        log::info!("Sent wol for {} mac(s) on behalf of the peer", macs.len());
+    });
+}
+
 #[inline]
 fn get_broadcast_port() -> u16 {
     (RENDEZVOUS_PORT + 3) as _

@@ -576,6 +576,27 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(msg));
     }
 
+    /// Wakes `peer_id` through this session's peer, which must share its LAN.
+    pub fn wake_on_lan(&self, peer_id: String) -> bool {
+        let macs = PeerConfig::load(&peer_id)
+            .options
+            .get("wol-macs")
+            .cloned()
+            .unwrap_or_default();
+        if macs.is_empty() {
+            return false;
+        }
+        let mut misc = Misc::new();
+        misc.set_wake_on_lan(WakeOnLan {
+            macs: macs.split(',').map(|m| m.to_owned()).collect(),
+            ..Default::default()
+        });
+        let mut msg = Message::new();
+        msg.set_misc(misc);
+        self.send(Data::Message(msg));
+        true
+    }
+
     pub fn get_audit_server(&self, typ: String) -> String {
         if LocalConfig::get_option("access_token").is_empty() {
             return "".to_owned();

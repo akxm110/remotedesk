@@ -531,6 +531,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
               showRestartRemoteDevice(pi, id, sessionId, ffi.dialogManager)),
     );
   }
+  // wakeOnLan
+  if (isDefaultConn && isDesktop && pi.platform == kPeerPlatformWindows) {
+    v.add(
+      TTextMenu(
+          child: Text('같은 네트워크의 PC 켜기'),
+          onPressed: () => showWakeOnLan(id, sessionId, ffi.dialogManager)),
+    );
+  }
   // insertLock
   if (isDefaultConn && !ffiModel.viewOnly && ffi.ffiModel.keyboard) {
     v.add(

@@ -2059,6 +2059,30 @@ pub fn session_restart_remote_device(session_id: SessionID) {
     }
 }
 
+pub fn session_wake_on_lan(session_id: SessionID, peer_id: String) -> SyncReturn<bool> {
+    SyncReturn(
+        sessions::get_session_by_session_id(&session_id)
+            .map(|s| s.wake_on_lan(peer_id))
+            .unwrap_or(false),
+    )
+}
+
+/// Peers whose MACs were recorded on an earlier connection, so they can be woken.
+pub fn main_get_wol_peers() -> SyncReturn<String> {
+    let peers: Vec<HashMap<&str, String>> = PeerConfig::peers(None)
+        .into_iter()
+        .filter(|(_, _, c)| c.options.get("wol-macs").map_or(false, |m| !m.is_empty()))
+        .map(|(id, _, c)| {
+            HashMap::from([
+                ("id", id),
+                ("alias", c.options.get("alias").cloned().unwrap_or_default()),
+                ("hostname", c.info.hostname),
+            ])
+        })
+        .collect();
+    SyncReturn(serde_json::to_string(&peers).unwrap_or_default())
+}
+
 pub fn session_get_audit_server_sync(session_id: SessionID, typ: String) -> SyncReturn<String> {
     let res = if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.get_audit_server(typ)

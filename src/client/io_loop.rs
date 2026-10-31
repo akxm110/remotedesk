@@ -2385,6 +2385,15 @@ impl<T: InvokeUiSession> Remote<T> {
                 .map(|v| v.as_bool())
                 .flatten()
                 .unwrap_or(false);
+            if let Some(macs) = platform_additions.get("wol_macs").and_then(|v| v.as_str()) {
+                if !macs.is_empty() {
+                    self.handler
+                        .lc
+                        .write()
+                        .unwrap()
+                        .set_option("wol-macs".to_owned(), macs.to_owned());
+                }
+            }
         }
     }
 

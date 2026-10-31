@@ -867,7 +867,13 @@ message Misc {
     // is rebuilt, and held again, the next time it is shown, before any connection names it
     // by id again, so the shape just selected is always there to give.
     uint64 request_cursor_data = 39;
+    WakeOnLan wake_on_lan = 40;
   }
+}
+
+// Asks the peer to send magic packets on its LAN, to power on a machine there.
+message WakeOnLan {
+  repeated string macs = 1;
 }
 
 message VoiceCallRequest {
