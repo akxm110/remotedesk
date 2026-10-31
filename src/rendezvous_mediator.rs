@@ -292,6 +292,7 @@ impl RendezvousMediator {
         tokio::spawn(async move {
             direct_server(server_cloned).await;
         });
+        crate::upnp::start_inbound(server.clone());
         #[cfg(target_os = "android")]
         let start_lan_listening = true;
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -743,7 +744,7 @@ impl RendezvousMediator {
         };
         if initiate {
             rr.uuid = uuid.clone();
-            rr.relay_server = relay_server.clone();
+            rr.relay_server = crate::upnp::attach_inbound(relay_server.clone());
             rr.set_id(Config::get_id());
         }
         msg_out.set_relay_response(rr);
@@ -1149,7 +1150,7 @@ impl RendezvousMediator {
         let msg_punch = PunchHoleSent {
             socket_addr: ph.socket_addr,
             id: Config::get_id(),
-            relay_server,
+            relay_server: crate::upnp::attach_inbound(relay_server),
             nat_type: nat_type.into(),
             version: crate::VERSION.to_owned(),
             socket_addr_v6,

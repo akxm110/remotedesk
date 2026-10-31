@@ -1,7 +1,8 @@
-//! Reverse connections for a controlled peer that cannot accept any: behind the carrier-grade NAT
-//! of USB tethering or a phone hotspot neither TCP punching nor a missing relay server gets
-//! through. The controller instead opens one TCP port on its own router with UPnP, and the peer
-//! connects out to it. The connection is then secured like any other, so the controller still
+//! Direct paths through a router's UPnP port, for when TCP punching fails and there is no relay
+//! server. Inbound: the controlled machine opens a port on its router and names it to the
+//! controller. Reverse: a controlled peer behind the carrier-grade NAT of USB tethering or a phone
+//! hotspot cannot accept anything, so the controller opens a port on its own router and the peer
+//! connects out to it. Either connection is then secured like any other, so the controller still
 //! verifies the peer's signed id before using it.
 use hbb_common::{
     allow_err, anyhow::anyhow, bail, log, tokio, tokio::net::TcpListener, ResultType, Stream,
@@ -9,11 +10,21 @@ use hbb_common::{
 use std::{
     io::{Read, Write},
     net::{IpAddr, SocketAddr, TcpStream, UdpSocket},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::Duration,
 };
 
 pub const REVERSE_PORT: u16 = 21120;
+// Spread over a range by id so several machines behind one router each get a port.
+const INBOUND_PORT_BASE: u16 = 21130;
+const INBOUND_PORTS: u16 = 50;
+// The rendezvous server passes the relay server field on untouched in both PunchHoleSent and
+// RelayResponse, so the inbound address rides there behind this tag.
+const INBOUND_TAG: &str = "|upnp://";
+const INBOUND_CONNECT_MS: u64 = 5000;
 const LEASE_SECS: u32 = 3600;
 const RENEW_SECS: u64 = 1200;
 const REVERSE_WAIT_MS: u64 = 8000;
@@ -24,6 +35,8 @@ const SERVICES: [&str; 3] = [
 ];
 
 static MAPPING_STARTED: AtomicBool = AtomicBool::new(false);
+static INBOUND_STARTED: AtomicBool = AtomicBool::new(false);
+static INBOUND_ADDR: Mutex<Option<SocketAddr>> = Mutex::new(None);
 
 struct Igd {
     host: SocketAddr,
@@ -277,6 +290,101 @@ pub fn spawn_reverse_connect(
                 }
                 _ => hbb_common::sleep(1.).await,
             }
+        }
+    });
+}
+
+pub fn attach_inbound(relay_server: String) -> String {
+    match *INBOUND_ADDR.lock().unwrap() {
+        Some(addr) => format!("{relay_server}{INBOUND_TAG}{addr}"),
+        None => relay_server,
+    }
+}
+
+/// Splits what `attach_inbound` added off the relay server. The address comes from the peer, so
+/// only a public one in the inbound range is taken.
+pub fn split_inbound(relay_server: &str) -> (String, Option<SocketAddr>) {
+    let Some((relay, addr)) = relay_server.split_once(INBOUND_TAG) else {
+        return (relay_server.to_owned(), None);
+    };
+    let addr = addr.parse::<SocketAddr>().ok().filter(|a| {
+        is_public(a.ip())
+            && (INBOUND_PORT_BASE..INBOUND_PORT_BASE + INBOUND_PORTS).contains(&a.port())
+    });
+    (relay.to_owned(), addr)
+}
+
+pub async fn connect_inbound(addr: SocketAddr) -> ResultType<Stream> {
+    let stream =
+        hbb_common::timeout(INBOUND_CONNECT_MS, tokio::net::TcpStream::connect(addr)).await??;
+    log::info!("Connected through the peer's router port {}", addr);
+    stream.set_nodelay(true).ok();
+    let local_addr = stream.local_addr()?;
+    Ok(Stream::from(stream, local_addr))
+}
+
+/// Opens this machine's inbound port on the router and serves connections arriving on it.
+#[cfg(not(target_os = "ios"))]
+pub fn start_inbound(server: crate::server::ServerPtr) {
+    use hbb_common::config::{self, Config};
+    if INBOUND_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let offset = Config::get_id()
+        .bytes()
+        .fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32))
+        % INBOUND_PORTS as u32;
+    let port = INBOUND_PORT_BASE + offset as u16;
+    tokio::spawn(async move {
+        let listener = match TcpListener::bind(("0.0.0.0", port)).await {
+            Ok(listener) => listener,
+            Err(err) => {
+                log::info!("UPnP: no inbound port {}: {}", port, err);
+                return;
+            }
+        };
+        std::thread::spawn(move || loop {
+            let addr = match map_port(port) {
+                Ok(addr) => {
+                    log::info!("UPnP: inbound connections can reach {}", addr);
+                    Some(addr)
+                }
+                Err(err) => {
+                    log::info!("UPnP: no inbound port: {}", err);
+                    None
+                }
+            };
+            *INBOUND_ADDR.lock().unwrap() = addr;
+            std::thread::sleep(Duration::from_secs(RENEW_SECS));
+        });
+        loop {
+            let (stream, addr) = match listener.accept().await {
+                Ok(accepted) => accepted,
+                Err(err) => {
+                    log::warn!("UPnP: inbound accept failed: {}", err);
+                    hbb_common::sleep(1.).await;
+                    continue;
+                }
+            };
+            if config::option2bool("stop-service", &Config::get_option("stop-service")) {
+                continue;
+            }
+            log::info!("Inbound connection from {}", addr);
+            stream.set_nodelay(true).ok();
+            let local_addr = stream.local_addr().unwrap_or(addr);
+            let server = server.clone();
+            tokio::spawn(async move {
+                allow_err!(
+                    crate::server::create_tcp_connection(
+                        server,
+                        Stream::from(stream, local_addr),
+                        addr,
+                        true,
+                        Default::default(),
+                    )
+                    .await
+                );
+            });
         }
     });
 }

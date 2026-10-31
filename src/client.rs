@@ -1119,11 +1119,23 @@ impl Client {
                         // Keep relay_server for a WebRTC secure-failure fallback: request_relay
                         // coordinates a FRESH uuid via the rendezvous server, so it works even if
                         // the raced create_relay already consumed the original uuid pairing.
-                        let relay_server_rr = rr.relay_server.clone();
+                        let (relay_server_rr, inbound) =
+                            crate::upnp::split_inbound(&rr.relay_server);
+                        if let Some(addr) = inbound {
+                            connect_futures.push(
+                                async move {
+                                    let conn = crate::upnp::connect_inbound(addr)
+                                        .await
+                                        .with_context(|| "Failed to connect to relay server")?;
+                                    Ok((conn, None, "UPnP", true))
+                                }
+                                .boxed(),
+                            );
+                        }
                         let fut = Self::create_relay(
                             &peer,
                             rr.uuid,
-                            rr.relay_server,
+                            relay_server_rr.clone(),
                             &key,
                             conn_type,
                             my_addr.is_ipv4(),
@@ -1433,6 +1445,8 @@ impl Client {
         Option<KcpStream>,
         &'static str,
     )> {
+        let (relay_server, inbound) = crate::upnp::split_inbound(relay_server);
+        let relay_server = relay_server.as_str();
         // Guard the offerer for the whole of connect(): any early return — cancellation during the
         // awaits below, the relay override, or a secure_connection failure — closes its pc via the
         // guard's drop. Disarmed only once WebRTC is the confirmed winning, secured transport.
@@ -1510,6 +1524,15 @@ impl Client {
                 async move {
                     let conn = crate::upnp::accept_reverse(listener).await?;
                     Ok((conn, None, "Reverse", true))
+                }
+                .boxed(),
+            );
+        }
+        if let Some(addr) = inbound {
+            direct_futures.push(
+                async move {
+                    let conn = crate::upnp::connect_inbound(addr).await?;
+                    Ok((conn, None, "UPnP", true))
                 }
                 .boxed(),
             );
