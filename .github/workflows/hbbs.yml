@@ -42,7 +42,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          cargo add openssl@0.10 --features vendored
+          sed -i '0,/^\[dependencies\]$/s//[dependencies]\nopenssl = { version = "0.10.68", features = ["vendored"] }/' Cargo.toml
           cargo build --release --target x86_64-unknown-linux-musl --bin hbbs
 
       - name: Publish
