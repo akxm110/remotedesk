@@ -2,6 +2,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
+import 'package:flutter_hbb/common/widgets/peer_power.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/peer_tab_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -193,6 +194,7 @@ class _PeerCardState extends State<_PeerCard>
                       ]).marginOnly(top: isPortrait ? 0 : 2),
                       Row(
                         children: [
+                          buildWakingLabel(peer),
                           Flexible(
                             child: Tooltip(
                               message: name,
@@ -233,6 +235,7 @@ class _PeerCardState extends State<_PeerCard>
                     ],
                   ).marginOnly(top: 2),
                 ),
+                if (!isPortrait) buildPowerButton(context, peer),
                 isPortrait
                     ? checkBoxOrActionMorePortrait(peer)
                     : checkBoxOrActionMoreLandscape(peer, isTile: true),
@@ -302,61 +305,68 @@ class _PeerCardState extends State<_PeerCard>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Expanded(
-                  child: Container(
-                    color: str2color('${peer.id}${peer.platform}', 0x7f),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                child:
-                                    getPlatformImage(peer.platform, size: 60),
-                              ),
-                              Row(
+                  child: Stack(fit: StackFit.expand, children: [
+                    Positioned.fill(
+                      child: Container(
+                        color: str2color('${peer.id}${peer.platform}', 0x7f),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Expanded(
-                                    child: Tooltip(
-                                      message: name,
-                                      waitDuration: const Duration(seconds: 1),
-                                      child: Text(
-                                        name,
-                                        style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12),
-                                        textAlign: TextAlign.center,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    child: getPlatformImage(peer.platform,
+                                        size: 60),
                                   ),
-                                ],
-                              ),
-                              if (_showNote(peer))
-                                Row(
-                                  children: [
-                                    Expanded(
+                                  Row(
+                                    children: [
+                                      Expanded(
                                         child: Tooltip(
-                                      message: peer.note,
-                                      waitDuration: const Duration(seconds: 1),
-                                      child: Text(
-                                        peer.note,
-                                        style: const TextStyle(
-                                            color: Colors.white38,
-                                            fontSize: 10),
-                                        textAlign: TextAlign.center,
-                                        overflow: TextOverflow.ellipsis,
+                                          message: name,
+                                          waitDuration:
+                                              const Duration(seconds: 1),
+                                          child: Text(
+                                            name,
+                                            style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12),
+                                            textAlign: TextAlign.center,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
                                       ),
-                                    ))
-                                  ],
-                                ),
-                            ],
-                          ).paddingOnly(top: 4.0, left: 4.0, right: 4.0),
+                                    ],
+                                  ),
+                                  if (_showNote(peer))
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                            child: Tooltip(
+                                          message: peer.note,
+                                          waitDuration:
+                                              const Duration(seconds: 1),
+                                          child: Text(
+                                            peer.note,
+                                            style: const TextStyle(
+                                                color: Colors.white38,
+                                                fontSize: 10),
+                                            textAlign: TextAlign.center,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ))
+                                      ],
+                                    ),
+                                ],
+                              ).paddingOnly(top: 4.0, left: 4.0, right: 4.0),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    buildWakingOverlay(peer),
+                  ]),
                 ),
                 Container(
                   color: Theme.of(context).colorScheme.background,
@@ -373,6 +383,7 @@ class _PeerCardState extends State<_PeerCard>
                           style: Theme.of(context).textTheme.titleSmall,
                         )),
                       ]).paddingSymmetric(vertical: 8)),
+                      buildPowerButton(context, peer),
                       checkBoxOrActionMoreLandscape(peer, isTile: false),
                     ],
                   ).paddingSymmetric(horizontal: 12.0),

@@ -1,5 +1,46 @@
+diff --git a/src/peer.rs b/src/peer.rs
+index 9e4cbec..8fc1a62 100644
+--- a/src/peer.rs
++++ b/src/peer.rs
+@@ -157,6 +157,36 @@ impl PeerMap {
+         None
+     }
+ 
++    /// Addresses of up to 8 peers other than `except` registered from `ip` within `timeout_ms`.
++    pub(crate) async fn online_at(
++        &self,
++        ip: std::net::IpAddr,
++        except: &str,
++        timeout_ms: i64,
++    ) -> Vec<SocketAddr> {
++        let peers: Vec<LockPeer> = self
++            .map
++            .read()
++            .await
++            .iter()
++            .filter(|(id, _)| id.as_str() != except)
++            .map(|(_, p)| p.clone())
++            .collect();
++        let mut addrs = Vec::new();
++        for p in peers {
++            let p = p.read().await;
++            if (p.last_reg_time.elapsed().as_millis() as i64) < timeout_ms
++                && p.socket_addr.ip().to_canonical() == ip.to_canonical()
++            {
++                addrs.push(p.socket_addr);
++                if addrs.len() >= 8 {
++                    break;
++                }
++            }
++        }
++        addrs
++    }
++
+     #[inline]
+     pub(crate) async fn get_or(&self, id: &str) -> LockPeer {
+         if let Some(p) = self.get(id).await {
 diff --git a/src/rendezvous_server.rs b/src/rendezvous_server.rs
-index 78a303d..4f0a9d1 100644
+index 78a303d..a440e85 100644
 --- a/src/rendezvous_server.rs
 +++ b/src/rendezvous_server.rs
 @@ -477,7 +477,20 @@ impl RendezvousServer {
@@ -73,3 +114,61 @@ index 78a303d..4f0a9d1 100644
                      ..Default::default()
                  });
              }
+@@ -850,6 +891,47 @@ impl RendezvousServer {
+         Ok(())
+     }
+ 
++    /// A powered-off machine can only be woken from its own LAN, so the magic packet request goes
++    /// to the online peers registered from the public IP it was last seen at.
++    async fn handle_wake_request(
++        &mut self,
++        stream: &mut FramedStream,
++        pd: PeerDiscovery,
++    ) -> ResultType<()> {
++        let mut helpers = 0;
++        if let Some(target) = self.pm.get(&pd.id).await {
++            let ip = {
++                let p = target.read().await;
++                if p.socket_addr.port() != 0 {
++                    Some(p.socket_addr.ip())
++                } else {
++                    p.info.ip.parse::<IpAddr>().ok()
++                }
++            };
++            if let Some(ip) = ip {
++                let mut msg_out = RendezvousMessage::new();
++                msg_out.set_peer_discovery(PeerDiscovery {
++                    cmd: "wol".to_owned(),
++                    mac: pd.mac,
++                    ..Default::default()
++                });
++                for addr in self.pm.online_at(ip, &pd.id, REG_TIMEOUT).await {
++                    self.tx.send(Data::Msg(msg_out.clone().into(), addr)).ok();
++                    helpers += 1;
++                }
++            }
++        }
++        log::info!("wake request for {}: {} helper(s)", pd.id, helpers);
++        let mut msg_out = RendezvousMessage::new();
++        msg_out.set_peer_discovery(PeerDiscovery {
++            cmd: "wol".to_owned(),
++            misc: helpers.to_string(),
++            ..Default::default()
++        });
++        stream.send(&msg_out).await?;
++        Ok(())
++    }
++
+     #[inline]
+     async fn send_to_tcp(&mut self, msg: RendezvousMessage, addr: SocketAddr) {
+         let mut tcp = self.tcp_punch.lock().await.remove(&try_into_v4(addr));
+@@ -1164,6 +1246,9 @@ impl RendezvousServer {
+                         Some(rendezvous_message::Union::OnlineRequest(or)) => {
+                             allow_err!(rs.handle_online_request(&mut stream, or.peers).await);
+                         }
++                        Some(rendezvous_message::Union::PeerDiscovery(pd)) if pd.cmd == "wol" => {
++                            allow_err!(rs.handle_wake_request(&mut stream, pd).await);
++                        }
+                         _ => {}
+                     }
+                 }

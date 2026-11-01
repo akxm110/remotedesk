@@ -2239,6 +2239,23 @@ pub fn main_wol(id: String) {
     crate::lan::send_wol(id)
 }
 
+/// Wakes the powered-off `id` through the online machines on its LAN: the number of machines
+/// asked, -1 when its MACs are unknown, -2 when the request failed.
+pub fn main_wake_peer(id: String) -> i32 {
+    #[cfg(not(target_os = "ios"))]
+    {
+        crate::lan::request_wake(id).unwrap_or_else(|e| {
+            log::error!("wake request failed: {e}");
+            -2
+        })
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = id;
+        -2
+    }
+}
+
 pub fn main_create_shortcut(_id: String) {
     #[cfg(windows)]
     create_shortcut(_id);

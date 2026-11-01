@@ -5377,7 +5377,7 @@ pub mod peer_online {
         }
     }
 
-    async fn create_online_stream() -> ResultType<Stream> {
+    pub(crate) async fn create_online_stream() -> ResultType<Stream> {
         let (rendezvous_server, _servers, _contained) =
             crate::get_rendezvous_server(READ_TIMEOUT).await;
         let tmp: Vec<&str> = rendezvous_server.split(":").collect();

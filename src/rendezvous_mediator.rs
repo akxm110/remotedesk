@@ -593,6 +593,11 @@ impl RendezvousMediator {
                     Self::restart();
                 }
             }
+            // The server asks this machine to wake a powered-off one on the same LAN.
+            #[cfg(not(target_os = "ios"))]
+            Some(rendezvous_message::Union::PeerDiscovery(pd)) if pd.cmd == "wol" => {
+                crate::lan::send_wol_to_macs(pd.mac.split(',').map(|m| m.to_owned()).collect());
+            }
             _ => {}
         }
         Ok(())

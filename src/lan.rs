@@ -139,6 +139,38 @@ pub fn send_wol_to_macs(mut macs: Vec<String>) {
     });
 }
 
+/// Asks the rendezvous server to have the online machines on `id`'s LAN wake it with the MACs
+/// recorded on an earlier connection. Returns how many machines were asked, or -1 when no MACs
+/// are known for `id`.
+#[tokio::main(flavor = "current_thread")]
+pub async fn request_wake(id: String) -> ResultType<i32> {
+    let macs = config::PeerConfig::load(&id)
+        .options
+        .get("wol-macs")
+        .cloned()
+        .unwrap_or_default();
+    if macs.is_empty() {
+        return Ok(-1);
+    }
+    let mut socket = crate::client::peer_online::create_online_stream().await?;
+    let mut msg_out = Message::new();
+    msg_out.set_peer_discovery(PeerDiscovery {
+        cmd: "wol".to_owned(),
+        id,
+        mac: macs,
+        ..Default::default()
+    });
+    socket.send(&msg_out).await?;
+    if let Some(msg_in) = crate::get_next_nonkeyexchange_msg(&mut socket, Some(5_000)).await {
+        if let Some(rendezvous_message::Union::PeerDiscovery(pd)) = msg_in.union {
+            if pd.cmd == "wol" {
+                return Ok(pd.misc.parse().unwrap_or(0));
+            }
+        }
+    }
+    bail!("No wake response from the rendezvous server");
+}
+
 #[inline]
 fn get_broadcast_port() -> u16 {
     (RENDEZVOUS_PORT + 3) as _
