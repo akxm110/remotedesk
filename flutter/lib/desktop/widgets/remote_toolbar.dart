@@ -3597,6 +3597,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                 offstage: isFullscreen.isTrue,
                 child: buttonWrapper(
                   () async {
+                    if (await _fullscreenEachMonitor(widget.ffi)) return;
                     await stateGlobal.setFullscreenAllMonitors();
                     _fitRemoteToWindow(widget.ffi);
                   },
@@ -3837,6 +3838,35 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
 
 // Scale the remote image to fit the window so it no longer pans when the
 // local and remote screen sizes differ slightly.
+// Puts each remote display fullscreen on its own local monitor, both ordered
+// left to right. One window stretched over all monitors shows the remote
+// displays' bounding box at its own aspect ratio, which leaves black bars
+// whenever the remote layout differs from the local one.
+Future<bool> _fullscreenEachMonitor(FFI ffi) async {
+  final pi = ffi.ffiModel.pi;
+  if (!pi.isSupportMultiDisplay || pi.displays.length <= 1) return false;
+  final screens = await getScreenRectList();
+  if (screens.length <= 1) return false;
+  screens.sort((a, b) =>
+      a.left != b.left ? a.left.compareTo(b.left) : a.top.compareTo(b.top));
+  final displays = List.generate(pi.displays.length, (i) => i)
+    ..sort((a, b) {
+      final da = pi.displays[a];
+      final db = pi.displays[b];
+      return da.x != db.x ? da.x.compareTo(db.x) : da.y.compareTo(db.y);
+    });
+  final count =
+      displays.length < screens.length ? displays.length : screens.length;
+  _fitRemoteToWindow(ffi);
+  openMonitorInTheSameTab(displays[0], ffi, pi);
+  await tryMoveToScreenAndSetFullscreen(screens[0]);
+  for (var i = 1; i < count; i++) {
+    openMonitorInNewTabOrWindow(displays[i], ffi.id, pi,
+        screenRect: screens[i]);
+  }
+  return true;
+}
+
 void _fitRemoteToWindow(FFI ffi) {
   bind
       .sessionSetViewStyle(
