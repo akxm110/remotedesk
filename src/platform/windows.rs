@@ -4748,15 +4748,15 @@ pub(super) fn get_pids_with_first_arg_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
         .unwrap_or_default()
 }
 
-/// Makes the foreground window of this process cover every monitor above the
-/// taskbar, or restores it. A window merely sized to the monitors keeps its
-/// invisible resize frame, which leaves a gap at the edges, and stays under
-/// the taskbar because Windows does not treat a spanning window as fullscreen.
+/// Stretches the foreground window of this process, already fullscreen on one
+/// monitor, over every monitor and above the taskbar, or drops it back from
+/// topmost. The window must enter fullscreen through the window plugin first:
+/// only then does its frame stop insetting the client area, which otherwise
+/// leaves a gap at the edges.
 pub fn set_span_fullscreen(enable: bool) -> bool {
-    // (hwnd, style, window rect) to restore.
-    static SAVED: Mutex<Option<(usize, isize, [i32; 4])>> = Mutex::new(None);
+    static SPANNED: Mutex<Option<usize>> = Mutex::new(None);
 
-    let mut saved = SAVED.lock().unwrap();
+    let mut spanned = SPANNED.lock().unwrap();
     unsafe {
         if enable {
             let hwnd = GetForegroundWindow();
@@ -4768,23 +4768,7 @@ pub fn set_span_fullscreen(enable: bool) -> bool {
             if pid != std::process::id() {
                 return false;
             }
-            let mut rect: RECT = mem::zeroed();
-            if GetWindowRect(hwnd, &mut rect) == 0 {
-                return false;
-            }
-            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            if saved.is_none() {
-                *saved = Some((
-                    hwnd as usize,
-                    style,
-                    [rect.left, rect.top, rect.right, rect.bottom],
-                ));
-            }
-            SetWindowLongPtrW(
-                hwnd,
-                GWL_STYLE,
-                style & !((WS_CAPTION | WS_THICKFRAME) as isize),
-            );
+            *spanned = Some(hwnd as usize);
             SetWindowPos(
                 hwnd,
                 HWND_TOPMOST,
@@ -4795,19 +4779,17 @@ pub fn set_span_fullscreen(enable: bool) -> bool {
                 SWP_FRAMECHANGED | SWP_SHOWWINDOW,
             ) != 0
         } else {
-            let Some((hwnd, style, r)) = saved.take() else {
+            let Some(hwnd) = spanned.take() else {
                 return false;
             };
-            let hwnd = hwnd as HWND;
-            SetWindowLongPtrW(hwnd, GWL_STYLE, style);
             SetWindowPos(
-                hwnd,
+                hwnd as HWND,
                 HWND_NOTOPMOST,
-                r[0],
-                r[1],
-                r[2] - r[0],
-                r[3] - r[1],
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
             ) != 0
         }
     }

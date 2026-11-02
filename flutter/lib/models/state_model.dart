@@ -122,17 +122,23 @@ class StateGlobal {
     }
     _fullscreen.value = true;
     _showTabBar.value = false;
-    _spanNative = isWindows && bind.mainSetSpanFullscreen(enable: true);
     _hideMainWindowToTray();
     refreshResizeEdgeSize();
     _windowBorderWidth.value = 0;
-    if (!_spanNative) {
-      await wc.setFrame(union);
+    _spanViaPlugin = isWindows;
+    if (_spanViaPlugin) {
+      // Enter the plugin's own fullscreen first: only then does the window
+      // frame stop insetting the client area, which left gaps at the edges.
+      await wc.setFullscreen(true);
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (bind.mainSetSpanFullscreen(enable: true)) return;
     }
+    await wc.setFrame(union);
   }
 
-  // Whether the native side spans the window, which also restores it.
-  bool _spanNative = false;
+  // Whether the span went through the plugin's fullscreen, which then also
+  // restores the window.
+  bool _spanViaPlugin = false;
 
   void _hideMainWindowToTray() {
     if (isDesktop && !isMainDesktopWindow) {
@@ -146,9 +152,10 @@ class StateGlobal {
     spanToolbarCenter.value = null;
     refreshResizeEdgeSize();
     _windowBorderWidth.value = kWindowBorderWidth;
-    if (_spanNative) {
-      _spanNative = false;
+    if (_spanViaPlugin) {
+      _spanViaPlugin = false;
       bind.mainSetSpanFullscreen(enable: false);
+      WindowController.fromWindowId(windowId).setFullscreen(false);
     } else if (frame != null) {
       WindowController.fromWindowId(windowId).setFrame(frame);
     }
