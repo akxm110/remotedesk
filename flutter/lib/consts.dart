@@ -60,6 +60,7 @@ const String kWindowDisableGrabKeyboard = "disable_grab_keyboard";
 const String kWindowActionRebuild = "rebuild";
 const String kWindowEventHide = "hide";
 const String kWindowEventShow = "show";
+const String kWindowEventHideMainToTray = "hide_main_to_tray";
 const String kWindowConnect = "connect";
 const String kWindowBumpMouse = "bump_mouse";
 
@@ -280,7 +281,7 @@ const double kDesktopFileTransferRowHeight = 30.0;
 const double kDesktopFileTransferHeaderHeight = 25.0;
 
 const double kMinFps = 5;
-const double kDefaultFps = 30;
+const double kDefaultFps = 60;
 const double kMaxFps = 120;
 
 const double kMinQuality = 10;

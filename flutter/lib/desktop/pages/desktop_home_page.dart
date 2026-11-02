@@ -792,6 +792,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         await rustDeskWinManager.registerActiveWindow(call.arguments["id"]);
       } else if (call.method == kWindowEventHide) {
         await rustDeskWinManager.unregisterActiveWindow(call.arguments['id']);
+      } else if (call.method == kWindowEventHideMainToTray) {
+        // Same as closing the main window: it stays reachable from the tray.
+        if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
+          await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
+        }
+        await windowManager.hide();
       } else if (call.method == kWindowConnect) {
         await connectMainDesktop(
           call.arguments['id'],

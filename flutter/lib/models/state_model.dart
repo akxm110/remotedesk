@@ -2,6 +2,7 @@ import 'dart:ui' show Rect;
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 
 import '../consts.dart';
@@ -82,6 +83,7 @@ class StateGlobal {
     if (_fullscreen.value != v) {
       _fullscreen.value = v;
       _showTabBar.value = !_fullscreen.value;
+      if (v) _hideMainWindowToTray();
       if (isWebDesktop) {
         procFullscreenWeb();
       } else if (!v && _spanRestoreFrame != null) {
@@ -120,9 +122,16 @@ class StateGlobal {
     }
     _fullscreen.value = true;
     _showTabBar.value = false;
+    _hideMainWindowToTray();
     refreshResizeEdgeSize();
     _windowBorderWidth.value = 0;
     await wc.setFrame(union);
+  }
+
+  void _hideMainWindowToTray() {
+    if (isDesktop && !isMainDesktopWindow) {
+      rustDeskWinManager.call(WindowType.Main, kWindowEventHideMainToTray, '');
+    }
   }
 
   _exitSpanFullscreen() {

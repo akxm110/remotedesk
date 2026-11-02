@@ -498,8 +498,8 @@ impl<T: InvokeUiSession> Session<T> {
         }
         if value != "custom" {
             let last_auto_fps = self.lc.read().unwrap().last_auto_fps;
-            if last_auto_fps.unwrap_or(usize::MAX) >= 45 {
-                let msg = self.lc.write().unwrap().set_custom_fps(45, false);
+            if last_auto_fps.unwrap_or(usize::MAX) >= 60 {
+                let msg = self.lc.write().unwrap().set_custom_fps(60, false);
                 self.send(Data::Message(msg));
             }
         }

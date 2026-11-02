@@ -1248,10 +1248,47 @@ pub fn map_keyboard_mode(_peer: &str, event: &Event, key_event: KeyEvent) -> Vec
     if let Some(evt) = windows_peer_special_key(_peer, event) {
         return vec![evt];
     }
+    if let Some(events) = map_typing_key_as_tap(_peer, event, &key_event) {
+        return events;
+    }
 
     _map_keyboard_mode(_peer, event, key_event)
         .map(|e| vec![e])
         .unwrap_or_default()
+}
+
+// When the key-up reaches the peer late over a slow network, the peer sees a
+// long press and types the character twice. Typing keys are therefore sent as a
+// down/up pair at key-down, and their local key-up is dropped. Space, arrows and
+// modifiers keep real hold semantics for panning, games and shortcuts.
+fn map_typing_key_as_tap(peer: &str, event: &Event, key_event: &KeyEvent) -> Option<Vec<KeyEvent>> {
+    let (key, down) = match event.event_type {
+        EventType::KeyPress(key) => (key, true),
+        EventType::KeyRelease(key) => (key, false),
+        _ => return None,
+    };
+    let is_typing_key = matches!(
+        key,
+        Key::KeyA | Key::KeyB | Key::KeyC | Key::KeyD | Key::KeyE | Key::KeyF | Key::KeyG
+            | Key::KeyH | Key::KeyI | Key::KeyJ | Key::KeyK | Key::KeyL | Key::KeyM | Key::KeyN
+            | Key::KeyO | Key::KeyP | Key::KeyQ | Key::KeyR | Key::KeyS | Key::KeyT | Key::KeyU
+            | Key::KeyV | Key::KeyW | Key::KeyX | Key::KeyY | Key::KeyZ
+            | Key::Num0 | Key::Num1 | Key::Num2 | Key::Num3 | Key::Num4
+            | Key::Num5 | Key::Num6 | Key::Num7 | Key::Num8 | Key::Num9
+            | Key::Comma | Key::Dot | Key::SemiColon | Key::Quote | Key::LeftBracket
+            | Key::RightBracket | Key::Slash | Key::BackSlash | Key::Minus | Key::Equal
+            | Key::BackQuote | Key::Backspace | Key::Return | Key::Tab | Key::Delete
+    );
+    if !is_typing_key {
+        return None;
+    }
+    if !down {
+        return Some(vec![]);
+    }
+    let press = _map_keyboard_mode(peer, event, key_event.clone())?;
+    let mut release = press.clone();
+    release.down = false;
+    Some(vec![press, release])
 }
 
 fn windows_peer_special_key(peer: &str, event: &Event) -> Option<KeyEvent> {
