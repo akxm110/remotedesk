@@ -25,6 +25,8 @@ const double _kTabBarHeight = kDesktopRemoteTabBarHeight;
 const double _kIconSize = 18;
 const double _kDividerIndent = 10;
 const double _kActionIconSize = 12;
+// How far below the tab bar a tab must be dragged to move it to a new window.
+const double _kTabDragOutDistance = _kTabBarHeight * 2;
 
 class TabInfo {
   final String key; // Notice: cm use client_id.toString() as key
@@ -244,6 +246,8 @@ class DesktopTab extends StatefulWidget {
   final Widget Function(Widget pageView)? pageViewBuilder;
   // Right click tab menu
   final TabMenuBuilder? tabMenuBuilder;
+  // Called with the tab key when a tab is dragged down out of the tab bar.
+  final void Function(String key)? onTabDragOut;
   final Widget? tail;
   final Future<bool> Function()? onWindowCloseButton;
   final TabBuilder? tabBuilder;
@@ -269,6 +273,7 @@ class DesktopTab extends StatefulWidget {
     this.showClose = true,
     this.pageViewBuilder,
     this.tabMenuBuilder,
+    this.onTabDragOut,
     this.tail,
     this.onWindowCloseButton,
     this.tabBuilder,
@@ -671,6 +676,7 @@ class _DesktopTabState extends State<DesktopTab>
                               invisibleTabKeys: invisibleTabKeys,
                               tabBuilder: tabBuilder,
                               tabMenuBuilder: tabMenuBuilder,
+                              onTabDragOut: widget.onTabDragOut,
                               labelGetter: labelGetter,
                               maxLabelWidth: maxLabelWidth,
                               selectedTabBackgroundColor:
@@ -923,6 +929,7 @@ class _ListView extends StatelessWidget {
 
   final TabBuilder? tabBuilder;
   final TabMenuBuilder? tabMenuBuilder;
+  final void Function(String key)? onTabDragOut;
   final LabelGetter? labelGetter;
   final double? maxLabelWidth;
   final Color? selectedTabBackgroundColor;
@@ -936,6 +943,7 @@ class _ListView extends StatelessWidget {
     required this.invisibleTabKeys,
     this.tabBuilder,
     this.tabMenuBuilder,
+    this.onTabDragOut,
     this.labelGetter,
     this.maxLabelWidth,
     this.selectedTabBackgroundColor,
@@ -1014,6 +1022,19 @@ class _ListView extends StatelessWidget {
                     selectedBorderColor: selectedBorderColor,
                   ),
                 );
+                if (onTabDragOut != null && state.value.tabs.length > 1) {
+                  var dragDy = 0.0;
+                  return GestureDetector(
+                    onPanStart: (e) => dragDy = 0,
+                    onPanUpdate: (e) => dragDy += e.delta.dy,
+                    onPanEnd: (e) {
+                      if (dragDy > _kTabDragOutDistance) {
+                        onTabDragOut!(tab.key);
+                      }
+                    },
+                    child: child,
+                  );
+                }
                 return GestureDetector(
                   onPanStart: (e) {},
                   child: child,

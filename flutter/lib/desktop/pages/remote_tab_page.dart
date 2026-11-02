@@ -135,6 +135,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
       body: DesktopTab(
         controller: tabController,
         onWindowCloseButton: handleWindowCloseButton,
+        onTabDragOut: _moveTabToNewWindow,
         tail: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -239,6 +240,16 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
               enableResizeEdges: subWindowManagerEnableResizeEdges,
               windowId: stateGlobal.windowId,
             ));
+  }
+
+  // Same as the "Move tab to new window" menu entry.
+  void _moveTabToNewWindow(String key) {
+    final tab = tabController.state.value.tabs
+        .firstWhereOrNull((tab) => tab.key == key);
+    if (tab == null) return;
+    final sessionId = (tab.page as RemotePage).ffi.sessionId;
+    DesktopMultiWindow.invokeMethod(kMainWindowId,
+        kWindowEventMoveTabToNewWindow, '${windowId()},$key,$sessionId,RemoteDesktop');
   }
 
   // Note: Some dup code to ../widgets/remote_toolbar

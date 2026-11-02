@@ -2256,6 +2256,18 @@ pub fn main_wake_peer(id: String) -> i32 {
     }
 }
 
+/// Covers all local monitors with the foreground session window, or restores it.
+/// False when the platform or window does not support it.
+pub fn main_set_span_fullscreen(enable: bool) -> SyncReturn<bool> {
+    #[cfg(windows)]
+    return SyncReturn(crate::platform::windows::set_span_fullscreen(enable));
+    #[cfg(not(windows))]
+    {
+        let _ = enable;
+        SyncReturn(false)
+    }
+}
+
 pub fn main_create_shortcut(_id: String) {
     #[cfg(windows)]
     create_shortcut(_id);

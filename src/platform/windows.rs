@@ -4748,6 +4748,71 @@ pub(super) fn get_pids_with_first_arg_by_wmic<S1: AsRef<str>, S2: AsRef<str>>(
         .unwrap_or_default()
 }
 
+/// Makes the foreground window of this process cover every monitor above the
+/// taskbar, or restores it. A window merely sized to the monitors keeps its
+/// invisible resize frame, which leaves a gap at the edges, and stays under
+/// the taskbar because Windows does not treat a spanning window as fullscreen.
+pub fn set_span_fullscreen(enable: bool) -> bool {
+    // (hwnd, style, window rect) to restore.
+    static SAVED: Mutex<Option<(usize, isize, [i32; 4])>> = Mutex::new(None);
+
+    let mut saved = SAVED.lock().unwrap();
+    unsafe {
+        if enable {
+            let hwnd = GetForegroundWindow();
+            if hwnd.is_null() {
+                return false;
+            }
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            if pid != std::process::id() {
+                return false;
+            }
+            let mut rect: RECT = mem::zeroed();
+            if GetWindowRect(hwnd, &mut rect) == 0 {
+                return false;
+            }
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            if saved.is_none() {
+                *saved = Some((
+                    hwnd as usize,
+                    style,
+                    [rect.left, rect.top, rect.right, rect.bottom],
+                ));
+            }
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_STYLE,
+                style & !((WS_CAPTION | WS_THICKFRAME) as isize),
+            );
+            SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                GetSystemMetrics(SM_XVIRTUALSCREEN),
+                GetSystemMetrics(SM_YVIRTUALSCREEN),
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+            ) != 0
+        } else {
+            let Some((hwnd, style, r)) = saved.take() else {
+                return false;
+            };
+            let hwnd = hwnd as HWND;
+            SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+            SetWindowPos(
+                hwnd,
+                HWND_NOTOPMOST,
+                r[0],
+                r[1],
+                r[2] - r[0],
+                r[3] - r[1],
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+            ) != 0
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -122,11 +122,17 @@ class StateGlobal {
     }
     _fullscreen.value = true;
     _showTabBar.value = false;
+    _spanNative = isWindows && bind.mainSetSpanFullscreen(enable: true);
     _hideMainWindowToTray();
     refreshResizeEdgeSize();
     _windowBorderWidth.value = 0;
-    await wc.setFrame(union);
+    if (!_spanNative) {
+      await wc.setFrame(union);
+    }
   }
+
+  // Whether the native side spans the window, which also restores it.
+  bool _spanNative = false;
 
   void _hideMainWindowToTray() {
     if (isDesktop && !isMainDesktopWindow) {
@@ -140,7 +146,10 @@ class StateGlobal {
     spanToolbarCenter.value = null;
     refreshResizeEdgeSize();
     _windowBorderWidth.value = kWindowBorderWidth;
-    if (frame != null) {
+    if (_spanNative) {
+      _spanNative = false;
+      bind.mainSetSpanFullscreen(enable: false);
+    } else if (frame != null) {
       WindowController.fromWindowId(windowId).setFrame(frame);
     }
   }
