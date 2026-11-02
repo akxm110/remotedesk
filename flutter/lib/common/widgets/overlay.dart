@@ -587,7 +587,9 @@ class QualityMonitor extends StatelessWidget {
       child: Consumer<QualityMonitorModel>(
           builder: (context, qualityMonitorModel, child) => qualityMonitorModel
                   .show
-              ? Container(
+              ? Opacity(
+                  opacity: _opacity(),
+                  child: Container(
                   constraints: BoxConstraints(maxWidth: 200),
                   padding: const EdgeInsets.all(8),
                   color: MyTheme.canvasColor.withAlpha(150),
@@ -611,8 +613,17 @@ class QualityMonitor extends StatelessWidget {
                             qualityMonitorModel.webrtcTransport!),
                     ],
                   ),
-                )
+                ))
               : const SizedBox.shrink()));
+
+  // Read on every rebuild so a change in settings applies to open sessions.
+  double _opacity() {
+    final v = bind.mainGetLocalOption(key: kOptionQualityMonitorOpacity);
+    return (double.tryParse(v) ??
+            double.parse(kDefaultQualityMonitorOpacity))
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
 }
 
 class BlockableOverlayState extends OverlayKeyState {

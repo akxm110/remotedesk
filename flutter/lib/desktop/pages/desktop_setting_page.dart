@@ -1953,7 +1953,35 @@ class _DisplayState extends State<_Display> {
       if (isDesktop) trackpadSpeed(context),
       if (!isWeb) privacyModeImpl(context),
       other(context),
+      qualityMonitorOpacity(context),
     ]).marginOnly(bottom: _kListViewBottomMargin);
+  }
+
+  Widget qualityMonitorOpacity(BuildContext context) {
+    onChanged(String value) async {
+      await bind.mainSetLocalOption(
+          key: kOptionQualityMonitorOpacity, value: value);
+      setState(() {});
+    }
+
+    var groupValue =
+        bind.mainGetLocalOption(key: kOptionQualityMonitorOpacity);
+    if (groupValue.isEmpty) groupValue = kDefaultQualityMonitorOpacity;
+    return _Card(
+      title: 'FPS 표시 투명도',
+      children: [
+        ('1.0', '불투명'),
+        ('0.7', '조금 투명 (기본)'),
+        ('0.5', '반투명'),
+        ('0.3', '많이 투명'),
+      ]
+          .map((e) => _Radio<String>(context,
+              value: e.$1,
+              groupValue: groupValue,
+              label: e.$2,
+              onChanged: onChanged))
+          .toList(),
+    );
   }
 
   Widget viewStyle(BuildContext context) {
