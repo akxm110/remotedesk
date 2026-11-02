@@ -8,7 +8,7 @@ final Future<String> _currentVersion = bind.mainGetVersion();
 
 /// Shown at the top of the left pane while a newer release is out.
 class UpdateBanner extends StatelessWidget {
-  /// The new installer's Drive download link.
+  /// The new release's page, `.../releases/tag/<version>`.
   final String updateUrl;
   final VoidCallback onClose;
 
@@ -111,7 +111,17 @@ class UpdateBanner extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          Center(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: white70,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero),
+              onPressed: () => launchUrl(Uri.parse(updateUrl)),
+              child: const Text('변경 내역 보기', style: TextStyle(fontSize: 11.5)),
+            ),
+          ),
         ],
       ),
     );

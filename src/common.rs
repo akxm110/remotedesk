@@ -1024,17 +1024,15 @@ pub fn check_software_update() {
     }
 }
 
-/// The Drive uploader's web app (set by the release build), answering with the newest
-/// installer as `{"version":"1.5.9","id":"<Drive file id>"}`.
-const UPDATE_FEED: Option<&str> = option_env!("REMOTEDESK_UPDATE_FEED");
+/// RemoteDesk builds are published as GitHub releases tagged with the bare version
+/// (`1.5.9`), and this page redirects to the newest one's `/releases/tag/<version>`.
+const LATEST_RELEASE_URL: &str = "https://github.com/akxm110/remotedesk/releases/latest";
 
 // No need to check `danger_accept_invalid_cert` for now.
-// Because the url is always `UPDATE_FEED`.
+// Because the url is always `LATEST_RELEASE_URL`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    let Some(url) = UPDATE_FEED.filter(|u| !u.is_empty()).map(str::to_owned) else {
-        hbb_common::bail!("update check: this build has no update address");
-    };
+    let url = LATEST_RELEASE_URL.to_owned();
     let proxy_conf = Config::get_socks();
     let tls_url = get_url_for_tls(&url, &proxy_conf);
     let tls_type = get_cached_tls_type(tls_url);
@@ -1061,14 +1059,8 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
     if !latest_release_response.status().is_success() {
         hbb_common::bail!("update check: HTTP {}", latest_release_response.status());
     }
-    let feed: HashMap<String, String> =
-        serde_json::from_str(&latest_release_response.text().await?)?;
-    let latest_release_version = feed.get("version").cloned().unwrap_or_default();
-    let file_id = feed.get("id").cloned().unwrap_or_default();
-    // Read back by `get_new_version` and `updater::get_update_download_file_from_url`.
-    let response_url = format!(
-        "https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t&v={latest_release_version}"
-    );
+    let response_url = latest_release_response.url().to_string();
+    let latest_release_version = response_url.rsplit('/').next().unwrap_or_default();
 
     if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
         #[cfg(feature = "flutter")]

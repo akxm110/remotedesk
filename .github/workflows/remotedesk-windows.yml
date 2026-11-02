@@ -19,6 +19,9 @@ jobs:
   build-windows:
     needs: [generate-bridge]
     runs-on: windows-2022
+    # Publishing the release the installed apps update from.
+    permissions:
+      contents: write
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -105,9 +108,6 @@ jobs:
         shell: bash
 
       - name: Build RemoteDesk
-        env:
-          # Baked into the app as the update check address; kept out of the public source.
-          REMOTEDESK_UPDATE_FEED: ${{ secrets.REMOTEDESK_UPDATE_FEED }}
         run: |
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
@@ -146,17 +146,17 @@ jobs:
           path: ./SignOutput/RemoteDesk-*.exe
           retention-days: 1
 
-      # Installed apps update from the Drive folder the uploader (an Apps Script web app on
-      # the kakario1004 account) keeps; a curl -L after the POST follows its redirect as a GET.
-      - name: Upload to Google Drive
+      # Installed apps look at releases/latest; the tag is the bare version and the asset
+      # name must stay RemoteDesk-<version>-x64.exe.
+      - name: Publish release
         shell: bash
         env:
-          DRIVE_UPLOAD_KEY: ${{ secrets.DRIVE_UPLOAD_KEY }}
-          REMOTEDESK_UPDATE_FEED: ${{ secrets.REMOTEDESK_UPDATE_FEED }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          [ -n "$DRIVE_UPLOAD_KEY" ] || { echo "Drive upload not set up, skipping"; exit 0; }
           f="./SignOutput/RemoteDesk-${VERSION}-x64.exe"
-          { printf '{"key":"%s","version":"%s","data":"' "$DRIVE_UPLOAD_KEY" "$VERSION"; base64 -w0 "$f"; printf '"}'; } > upload.json
-          result=$(curl -sSL --fail --max-time 600 -H "Content-Type: application/json" --data-binary @upload.json "$REMOTEDESK_UPDATE_FEED")
-          rm -f upload.json
-          echo "$result" | grep -q '"ok":true' || { echo "Drive upload failed: $result"; exit 1; }
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            gh release upload "$VERSION" "$f" --clobber
+          else
+            gh release create "$VERSION" "$f" --target "$GITHUB_SHA" \
+              --title "RemoteDesk $VERSION" --notes "RemoteDesk $VERSION"
+          fi
