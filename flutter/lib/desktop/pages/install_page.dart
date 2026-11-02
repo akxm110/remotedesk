@@ -268,7 +268,8 @@ class _InstallPageBodyState extends State<_InstallPageBody>
 
   Future<bool?> _askDesktopIcon() {
     return showDialog<bool>(
-      context: context,
+      // `context` alone is package:path's, which shadows the inherited getter.
+      context: this.context,
       builder: (context) => AlertDialog(
         title: Text('바로가기'),
         content: Text('바탕화면에 바로가기를 만들까요?'),
