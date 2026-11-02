@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 const int kMaxVirtualDisplayCount = 4;
 const int kAllVirtualDisplay = -1;
 
-const double kDesktopRemoteTabBarHeight = 28.0;
+const double kDesktopRemoteTabBarHeight = 36.0;
 const int kInvalidWindowId = -1;
 const int kMainWindowId = 0;
 
@@ -367,6 +367,8 @@ const kMaximizeEdgeSize = 0.0;
 // Do not use kWindowResizeEdgeSize directly. Use `windowResizeEdgeSize` in `common.dart` instead.
 const kWindowResizeEdgeSize = 5.0;
 final kWindowBorderWidth = isWindows ? 0.0 : 1.0;
+// Green frame around remote session windows, dropped in fullscreen.
+const kRemoteWindowBorderWidth = 3.0;
 const kDesktopMenuPadding = EdgeInsets.only(left: 12.0, right: 3.0);
 const kFrameBorderRadius = 12.0;
 const kFrameClipRRectBorderRadius = 12.0;

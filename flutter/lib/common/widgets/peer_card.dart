@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +28,31 @@ enum PeerUiType { grid, tile, list }
 final peerCardUiType = PeerUiType.grid.obs;
 
 bool? hideUsernameOnCard;
+
+// Decoded wallpaper thumbnails by peer ID, kept with the value they came from.
+final Map<String, MapEntry<String, Uint8List>> _peerWallpapers = {};
+
+/// The wallpaper the peer sent on its last connection, shown instead of its OS logo.
+Uint8List? peerWallpaperThumb(String id) {
+  final b64 = bind.mainGetPeerOptionSync(id: id, key: 'wallpaper-thumb');
+  if (b64.isEmpty) return null;
+  final cached = _peerWallpapers[id];
+  if (cached != null && cached.key == b64) return cached.value;
+  try {
+    final bytes = base64Decode(b64);
+    _peerWallpapers[id] = MapEntry(b64, bytes);
+    return bytes;
+  } catch (_) {
+    return null;
+  }
+}
+
+DecorationImage? _wallpaperImage(Uint8List? wallpaper) => wallpaper == null
+    ? null
+    : DecorationImage(
+        image: MemoryImage(wallpaper),
+        fit: BoxFit.cover,
+        colorFilter: const ColorFilter.mode(Colors.black26, BlendMode.darken));
 
 class _PeerCard extends StatefulWidget {
   final Peer peer;
@@ -140,6 +168,7 @@ class _PeerCardState extends State<_PeerCard>
         fontSize: 11,
         color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.6));
     final showNote = _showNote(peer);
+    final wallpaper = peerWallpaperThumb(peer.id);
 
     return Row(
       mainAxisSize: MainAxisSize.max,
@@ -147,6 +176,7 @@ class _PeerCardState extends State<_PeerCard>
         Container(
             decoration: BoxDecoration(
               color: str2color('${peer.id}${peer.platform}', 0x7f),
+              image: _wallpaperImage(wallpaper),
               borderRadius: isPortrait
                   ? BorderRadius.circular(_tileRadius)
                   : BorderRadius.only(
@@ -159,8 +189,10 @@ class _PeerCardState extends State<_PeerCard>
             height: isPortrait ? 50 : null,
             child: Stack(
               children: [
-                getPlatformImage(peer.platform, size: isPortrait ? 38 : 30)
-                    .paddingAll(6),
+                wallpaper == null
+                    ? getPlatformImage(peer.platform, size: isPortrait ? 38 : 30)
+                        .paddingAll(6)
+                    : SizedBox.square(dimension: (isPortrait ? 38 : 30) + 12),
                 if (_shouldBuildPasswordIcon(peer))
                   Positioned(
                     top: 1,
@@ -288,6 +320,7 @@ class _PeerCardState extends State<_PeerCard>
     final name = hideUsernameOnCard == true
         ? peer.hostname
         : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
+    final wallpaper = peerWallpaperThumb(peer.id);
     final child = Card(
       color: Colors.transparent,
       elevation: 0,
@@ -308,7 +341,10 @@ class _PeerCardState extends State<_PeerCard>
                   child: Stack(fit: StackFit.expand, children: [
                     Positioned.fill(
                       child: Container(
-                        color: str2color('${peer.id}${peer.platform}', 0x7f),
+                        decoration: BoxDecoration(
+                          color: str2color('${peer.id}${peer.platform}', 0x7f),
+                          image: _wallpaperImage(wallpaper),
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -317,8 +353,10 @@ class _PeerCardState extends State<_PeerCard>
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(6),
-                                    child: getPlatformImage(peer.platform,
-                                        size: 60),
+                                    child: wallpaper == null
+                                        ? getPlatformImage(peer.platform,
+                                            size: 60)
+                                        : const SizedBox.square(dimension: 60),
                                   ),
                                   Row(
                                     children: [

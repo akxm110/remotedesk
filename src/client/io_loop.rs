@@ -2394,6 +2394,18 @@ impl<T: InvokeUiSession> Remote<T> {
                         .set_option("wol-macs".to_owned(), macs.to_owned());
                 }
             }
+            if let Some(thumb) = platform_additions
+                .get("wallpaper_thumb")
+                .and_then(|v| v.as_str())
+            {
+                if !thumb.is_empty() {
+                    self.handler
+                        .lc
+                        .write()
+                        .unwrap()
+                        .set_option("wallpaper-thumb".to_owned(), thumb.to_owned());
+                }
+            }
         }
     }
 

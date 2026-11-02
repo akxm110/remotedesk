@@ -239,7 +239,8 @@ extern "C"
             STARTUPINFOW si;
             ZeroMemory(&si, sizeof si);
             si.cb = sizeof si;
-            si.dwFlags = STARTF_USESHOWWINDOW;
+            // No "app starting" cursor on the user's desktop, which the controller would mirror.
+            si.dwFlags = STARTF_USESHOWWINDOW | STARTF_FORCEOFFFEEDBACK;
             if (show)
             {
                 si.lpDesktop = (LPWSTR)L"winsta0\\default";

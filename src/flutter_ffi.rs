@@ -2239,6 +2239,21 @@ pub fn main_wol(id: String) {
     crate::lan::send_wol(id)
 }
 
+/// The ipTIME router saved for waking `id`, as JSON.
+pub fn main_get_router_wol(id: String) -> SyncReturn<String> {
+    SyncReturn(crate::router_wol::get(&id))
+}
+
+/// Saves the ipTIME router that wakes `id`; an empty `host` forgets it.
+pub fn main_set_router_wol(id: String, host: String, user: String, pass: String, macs: String) {
+    crate::router_wol::set(&id, &host, &user, &pass, &macs)
+}
+
+/// Wakes `id` through its ipTIME router: empty on success, otherwise a message for the user.
+pub fn main_wake_peer_via_router(id: String) -> String {
+    crate::router_wol::wake(&id)
+}
+
 /// Wakes the powered-off `id` through the online machines on its LAN: the number of machines
 /// asked, -1 when its MACs are unknown, -2 when the request failed.
 pub fn main_wake_peer(id: String) -> i32 {

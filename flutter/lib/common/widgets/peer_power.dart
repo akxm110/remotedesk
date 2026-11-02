@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../common.dart';
 import '../../common/formatter/id_formatter.dart';
+import '../../common/widgets/dialog.dart';
 import '../../models/peer_model.dart';
 import '../../models/platform_model.dart';
 
@@ -89,6 +91,8 @@ void _confirmWake(Peer peer) {
   final name = peer.alias.isNotEmpty
       ? peer.alias
       : (peer.hostname.isNotEmpty ? peer.hostname : formatID(peer.id));
+  final router = _routerWol(peer.id);
+  final routerHost = (router['host'] as String?) ?? '';
   gFFI.dialogManager.show((setState, close, context) {
     submit() {
       close();
@@ -97,7 +101,29 @@ void _confirmWake(Peer peer) {
 
     return CustomAlertDialog(
       title: const Text('컴퓨터 전원'),
-      content: Text('$name 컴퓨터를 켜시겠습니까?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$name 컴퓨터를 켜시겠습니까?'),
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: () {
+              close();
+              _showRouterSetup(peer);
+            },
+            child: Text(
+              routerHost.isEmpty
+                  ? 'ipTIME 공유기로 켜기 설정'
+                  : 'ipTIME 공유기로 켜기: $routerHost (변경)',
+              style: const TextStyle(
+                  color: MyTheme.accent,
+                  fontSize: 13,
+                  decoration: TextDecoration.underline),
+            ),
+          ),
+        ],
+      ),
       actions: [
         dialogButton('Cancel', onPressed: close, isOutline: true),
         dialogButton('켜기', onPressed: submit),
@@ -108,19 +134,114 @@ void _confirmWake(Peer peer) {
   });
 }
 
+/// The ipTIME router saved for [id]: host, user, macs and whether a password is kept.
+Map<String, dynamic> _routerWol(String id) {
+  try {
+    return jsonDecode(bind.mainGetRouterWol(id: id)) as Map<String, dynamic>;
+  } catch (_) {
+    return {};
+  }
+}
+
+void _showRouterSetup(Peer peer) {
+  final router = _routerWol(peer.id);
+  final host = TextEditingController(text: router['host'] ?? '');
+  final user = TextEditingController(text: router['user'] ?? '');
+  final pass = TextEditingController();
+  final macs = TextEditingController(text: router['macs'] ?? '');
+  final hasPass = router['has_pass'] == true;
+  final configured = (router['saved'] as bool?) ?? false;
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      bind.mainSetRouterWol(
+          id: peer.id,
+          host: host.text.trim(),
+          user: user.text.trim(),
+          pass: pass.text,
+          macs: macs.text.trim());
+      close();
+      showToast('저장했습니다. 전원 버튼으로 켤 수 있습니다.');
+    }
+
+    remove() {
+      bind.mainSetRouterWol(id: peer.id, host: '', user: '', pass: '', macs: '');
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: const Text('ipTIME 공유기로 켜기'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '켜려는 컴퓨터가 연결된 ipTIME 공유기가 대신 켜 줍니다. '
+              '공유기 관리 화면에서 DDNS와 원격 관리 포트를 켜 두어야 합니다.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            DialogTextField(
+                title: '공유기 주소',
+                hintText: '예: myhome.iptime.org:8888',
+                controller: host),
+            DialogTextField(title: '관리자 아이디', controller: user),
+            DialogTextField(
+                title: '관리자 비밀번호',
+                hintText: hasPass ? '저장됨 (바꿀 때만 입력)' : null,
+                obscureText: true,
+                controller: pass),
+            DialogTextField(
+                title: '컴퓨터 MAC 주소',
+                hintText: '접속한 적이 있으면 자동으로 채워집니다',
+                controller: macs),
+          ],
+        ),
+      ),
+      actions: [
+        if (configured)
+          dialogButton('삭제', onPressed: remove, isOutline: true),
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('저장', onPressed: submit),
+      ],
+      onSubmit: submit,
+      onCancel: close,
+    );
+  });
+}
+
+void _startWakeTimer(String id, String failText) {
+  _wakeTimers[id]?.cancel();
+  _wakeTimers[id] = Timer(_kWakeTimeout, () {
+    _wakeTimers.remove(id);
+    if (wakingPeers.remove(id)) _showWakeInfo(failText);
+  });
+}
+
 void _wake(String id) async {
   wakingPeers.add(id);
+  if (((_routerWol(id)['host'] as String?) ?? '').isNotEmpty) {
+    final err = await bind.mainWakePeerViaRouter(id: id);
+    if (err.isEmpty) {
+      _startWakeTimer(
+          id,
+          '컴퓨터가 켜지지 않았습니다.\n\n'
+          '공유기는 켜기 신호를 보냈습니다. 켜려는 컴퓨터가 랜선(유선)으로 '
+          '연결되어 있는지, BIOS에서 Wake on LAN이 켜져 있는지 확인해 주세요.');
+      return;
+    }
+    wakingPeers.remove(id);
+    _showWakeInfo('공유기로 켜지 못했습니다.\n\n$err');
+    return;
+  }
   final asked = await bind.mainWakePeer(id: id);
   if (asked > 0) {
-    _wakeTimers[id]?.cancel();
-    _wakeTimers[id] = Timer(_kWakeTimeout, () {
-      _wakeTimers.remove(id);
-      if (wakingPeers.remove(id)) {
-        _showWakeInfo('컴퓨터가 켜지지 않았습니다.\n\n'
-            '켜려는 컴퓨터가 랜선(유선)으로 연결되어 있는지, '
-            'BIOS에서 Wake on LAN이 켜져 있는지 확인해 주세요.');
-      }
-    });
+    _startWakeTimer(
+        id,
+        '컴퓨터가 켜지지 않았습니다.\n\n'
+        '켜려는 컴퓨터가 랜선(유선)으로 연결되어 있는지, '
+        'BIOS에서 Wake on LAN이 켜져 있는지 확인해 주세요.');
     return;
   }
   wakingPeers.remove(id);
@@ -129,7 +250,8 @@ void _wake(String id) async {
         '컴퓨터가 켜져 있을 때 한 번 접속해 두면, 다음부터 여기서 켤 수 있습니다.');
   } else if (asked == 0) {
     _showWakeInfo('같은 공유기에 켜져 있는 RemoteDesk 컴퓨터가 없어서 켤 수 없습니다.\n\n'
-        '꺼진 컴퓨터는 같은 공유기에 연결된 다른 컴퓨터가 대신 켜 줍니다.');
+        'ipTIME 공유기라면 전원 버튼 창의 "ipTIME 공유기로 켜기 설정"에서 '
+        '공유기를 등록하면, 공유기가 대신 켜 줍니다.');
   } else {
     _showWakeInfo('서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }

@@ -868,11 +868,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     if (!isWeb) toolbarItems.add(_RecordMenu());
     toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi));
     final toolbarBorderRadius = BorderRadius.all(Radius.circular(4.0));
-    // innerAxis: how the toolbar icons themselves flow.
-    // outerAxis: how the toolbar block and the handle stack against each other
-    // (perpendicular to the dock edge, so the handle hangs off the interior face).
     final innerAxis = isHorizontal ? Axis.horizontal : Axis.vertical;
-    final outerAxis = isHorizontal ? Axis.vertical : Axis.horizontal;
     final spacer = isHorizontal
         ? SizedBox(width: _ToolbarTheme.buttonHMargin * 2)
         : SizedBox(height: _ToolbarTheme.buttonHMargin * 2);
@@ -905,15 +901,12 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       ),
     );
     final handle = _buildDraggableCollapse(context, edge, isHorizontal);
-    // The handle hangs off the interior face of the toolbar (away from the
-    // docked edge), centered along that face by the Flex's default cross-axis
-    // alignment, so the icons themselves sit flush against the docked edge.
-    final children = (edge == _ToolbarEdge.top || edge == _ToolbarEdge.left)
-        ? [toolbarMaterial, handle]
-        : [handle, toolbarMaterial];
+    // The handle sits in line with the icons, so the whole toolbar is one bar.
+    final children = [toolbarMaterial, handle];
     return Flex(
-      direction: outerAxis,
+      direction: innerAxis,
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: children,
     );
   }
@@ -3518,7 +3511,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         axis: widget.multiEdgeEnabled ? null : Axis.horizontal,
         child: Icon(
           widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
-          size: 20,
+          size: 24,
           color: MyTheme.color(context).drag_indicator,
         ),
         feedback: widget,
@@ -3549,7 +3542,7 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
       padding: MaterialStateProperty.all(EdgeInsets.zero),
     );
     final isFullscreen = stateGlobal.fullscreen;
-    const double iconSize = 20;
+    const double iconSize = 24;
 
     buttonWrapper(VoidCallback? onPressed, Widget child,
         {Color hoverColor = _ToolbarTheme.blueColor}) {
@@ -3683,8 +3676,8 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
           borderRadius: widget.borderRadius,
         ),
         child: SizedBox(
-          height: widget.isHorizontal ? 20 : null,
-          width: widget.isHorizontal ? null : 20,
+          height: widget.isHorizontal ? 28 : null,
+          width: widget.isHorizontal ? null : 28,
           child: child,
         ),
       ),

@@ -163,8 +163,6 @@ class _InstallPageBodyState extends State<_InstallPageBody>
               ).marginSymmetric(vertical: 2 * em),
               Option(startmenu, label: 'Create start menu shortcuts')
                   .marginOnly(bottom: 7),
-              Option(desktopicon, label: 'Create desktop icon')
-                  .marginOnly(bottom: 7),
               Option(printer, label: 'Install {$appName} Printer'),
               Container(
                   padding: EdgeInsets.all(12),
@@ -261,7 +259,29 @@ class _InstallPageBodyState extends State<_InstallPageBody>
       bind.installInstallMe(options: args, path: controller.text);
     }
 
-    do_install();
+    _askDesktopIcon().then((v) {
+      if (v == null) return;
+      desktopicon.value = v;
+      do_install();
+    });
+  }
+
+  Future<bool?> _askDesktopIcon() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('바로가기'),
+        content: Text('바탕화면에 바로가기를 만들까요?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('아니오')),
+          ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('예')),
+        ],
+      ),
+    );
   }
 
   void selectInstallPath() async {

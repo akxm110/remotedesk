@@ -1976,6 +1976,14 @@ impl Connection {
                 json!(privacy_mode::get_supported_privacy_mode_impl()),
             );
             platform_additions.insert("wol_macs".into(), json!(crate::lan::get_wol_macs()));
+            platform_additions.insert(
+                "wallpaper_thumb".into(),
+                json!(hbb_common::tokio::task::spawn_blocking(
+                    crate::platform::windows::wallpaper_thumbnail
+                )
+                .await
+                .unwrap_or_default()),
+            );
         }
         #[cfg(target_os = "macos")]
         {

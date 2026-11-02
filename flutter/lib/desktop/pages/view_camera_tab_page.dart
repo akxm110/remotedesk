@@ -218,8 +218,10 @@ class _ViewCameraTabPageState extends State<ViewCameraTabPage> {
             Obx(() => Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                        color: MyTheme.color(context).border!,
-                        width: stateGlobal.windowBorderWidth.value),
+                        color: MyTheme.accent,
+                        width: stateGlobal.fullscreen.isTrue
+                            ? 0
+                            : kRemoteWindowBorderWidth),
                   ),
                   child: child,
                 )));

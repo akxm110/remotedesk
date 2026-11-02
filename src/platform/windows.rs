@@ -4795,6 +4795,48 @@ pub fn set_span_fullscreen(enable: bool) -> bool {
     }
 }
 
+/// The active user's wallpaper as a small base64 JPEG, which the controller shows on the
+/// peer card. Empty when there is no wallpaper image.
+pub fn wallpaper_thumbnail() -> String {
+    static CACHE: Mutex<Option<(PathBuf, std::time::SystemTime, String)>> = Mutex::new(None);
+    // The service runs as SYSTEM, so ask the active user's profile for the wallpaper Windows
+    // keeps a copy of, before falling back to this process's own setting.
+    let transcoded = get_active_user_home()
+        .map(|h| h.join("AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper"));
+    let path = match transcoded.filter(|p| p.is_file()) {
+        Some(p) => p,
+        None => match wallpaper::get() {
+            Ok(p) if !p.is_empty() => PathBuf::from(p),
+            _ => return String::new(),
+        },
+    };
+    let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) else {
+        return String::new();
+    };
+    let mut cache = CACHE.lock().unwrap();
+    if let Some((p, m, thumb)) = cache.as_ref() {
+        if *p == path && *m == modified {
+            return thumb.clone();
+        }
+    }
+    let thumb = encode_wallpaper_thumbnail(&path).unwrap_or_else(|e| {
+        log::info!("wallpaper thumbnail of {:?}: {e}", path);
+        String::new()
+    });
+    *cache = Some((path, modified, thumb.clone()));
+    thumb
+}
+
+fn encode_wallpaper_thumbnail(path: &std::path::Path) -> ResultType<String> {
+    let img = image::io::Reader::open(path)?
+        .with_guessed_format()?
+        .decode()?;
+    let thumb = img.thumbnail(320, 180).to_rgb8();
+    let mut jpeg = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 70).encode_image(&thumb)?;
+    Ok(crate::common::encode64(jpeg))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

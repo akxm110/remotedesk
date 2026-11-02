@@ -224,8 +224,10 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
             Obx(() => Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                        color: MyTheme.color(context).border!,
-                        width: stateGlobal.windowBorderWidth.value),
+                        color: MyTheme.accent,
+                        width: stateGlobal.fullscreen.isTrue
+                            ? 0
+                            : kRemoteWindowBorderWidth),
                   ),
                   child: child,
                 )));
@@ -236,7 +238,13 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
               child: tabWidget,
               // Specially configured for a better resize area and remote control.
               childPadding: kDragToResizeAreaPadding,
-              resizeEdgeSize: stateGlobal.resizeEdgeSize.value,
+              // On Windows the resize strips lie over the remote image, where a click
+              // starts a native resize and leaves the resize cursor stuck; keep them on
+              // the green frame.
+              resizeEdgeSize: isWindows &&
+                      stateGlobal.resizeEdgeSize.value > kRemoteWindowBorderWidth
+                  ? kRemoteWindowBorderWidth
+                  : stateGlobal.resizeEdgeSize.value,
               enableResizeEdges: subWindowManagerEnableResizeEdges,
               windowId: stateGlobal.windowId,
             ));

@@ -47,7 +47,13 @@ MouseCursor buildCursorOfCache(
             ..width = width
             ..height = height
             ..hotX = cache.hotx
-            ..hotY = cache.hoty);
+            ..hotY = cache.hoty)
+          .then((_) {}, onError: (e) {
+        // Out of cursor handles: forget the key so a later frame retries it,
+        // instead of leaving the last native cursor (busy or resize) on screen.
+        debugPrint('Failed to register cursor $key: $e');
+        cursor.cachedKeys.remove(key);
+      });
       cursor.addKey(key);
       cursor.registered(cache, key);
     }

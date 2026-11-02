@@ -16,6 +16,7 @@ pub use self::server::*;
 mod client;
 mod lan;
 mod upnp;
+mod router_wol;
 #[cfg(not(any(target_os = "ios")))]
 mod rendezvous_mediator;
 #[cfg(not(any(target_os = "ios")))]

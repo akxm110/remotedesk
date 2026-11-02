@@ -2546,7 +2546,9 @@ class CanvasModel with ChangeNotifier {
     return parent.target?.ffiModel.rect?.height.toInt() ?? defaultHeight;
   }
 
-  static double get windowBorderWidth => stateGlobal.windowBorderWidth.value;
+  static double get windowBorderWidth => isLinux || isWeb
+      ? stateGlobal.windowBorderWidth.value
+      : (stateGlobal.fullscreen.isTrue ? 0 : kRemoteWindowBorderWidth);
   static double get tabBarHeight => stateGlobal.tabBarHeight;
 
   void activateLocalCursor() {
