@@ -94,6 +94,9 @@ class StateGlobal {
 
   // Frame to restore after fullscreen that spans all local monitors.
   Rect? _spanRestoreFrame;
+  // Center of the leftmost monitor as a fraction of the spanned window width,
+  // set only while fullscreen spans all local monitors.
+  final spanToolbarCenter = Rxn<double>();
 
   Future<void> setFullscreenAllMonitors() async {
     if (_fullscreen.isTrue || isWebDesktop) {
@@ -110,6 +113,11 @@ class StateGlobal {
     }
     final wc = WindowController.fromWindowId(windowId);
     _spanRestoreFrame = await wc.getFrame();
+    final leftmost = rects.reduce((a, b) => a.left <= b.left ? a : b);
+    if (union.width > 0) {
+      spanToolbarCenter.value =
+          (leftmost.center.dx - union.left) / union.width;
+    }
     _fullscreen.value = true;
     _showTabBar.value = false;
     refreshResizeEdgeSize();
@@ -120,6 +128,7 @@ class StateGlobal {
   _exitSpanFullscreen() {
     final frame = _spanRestoreFrame;
     _spanRestoreFrame = null;
+    spanToolbarCenter.value = null;
     refreshResizeEdgeSize();
     _windowBorderWidth.value = kWindowBorderWidth;
     if (frame != null) {

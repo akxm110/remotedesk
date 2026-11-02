@@ -93,6 +93,17 @@ Offset _toolbarOffsetForEdge({
   }
 }
 
+// A centered toolbar would sit on the seam between two monitors when the
+// window spans all of them, so center it on the leftmost one instead.
+double _spanToolbarFraction(
+    double center, double parentWidth, double toolbarWidth) {
+  final travel = parentWidth - toolbarWidth;
+  if (travel <= 0) return 0.5;
+  return ((center * parentWidth - toolbarWidth / 2) / travel)
+      .clamp(0.0, 1.0)
+      .toDouble();
+}
+
 double _fractionForAlignedDrag({
   required double cursor,
   required double grabOffset,
@@ -707,8 +718,13 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         }
       });
 
+      final spanCenter = stateGlobal.spanToolbarCenter.value;
+      final fraction = spanCenter != null && edge == _ToolbarEdge.top
+          ? _spanToolbarFraction(spanCenter, MediaQuery.of(context).size.width,
+              _toolbarSize.value?.width ?? 360)
+          : _fraction.value;
       final toolbar = Align(
-        alignment: _alignmentForEdge(edge, _fraction.value),
+        alignment: _alignmentForEdge(edge, fraction),
         child: KeyedSubtree(
           key: _toolbarKey,
           child: collapse.isFalse
