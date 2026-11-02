@@ -1,9 +1,8 @@
 name: RemoteDesk Android build
 
+# Phone app work is paused: build only when started by hand.
 on:
   workflow_dispatch:
-  push:
-    branches: [remotedesk]
 
 env:
   RUST_VERSION: "1.75"

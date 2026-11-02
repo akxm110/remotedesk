@@ -17,6 +17,7 @@ mod client;
 mod lan;
 mod upnp;
 mod router_wol;
+mod conn_log;
 #[cfg(not(any(target_os = "ios")))]
 mod rendezvous_mediator;
 #[cfg(not(any(target_os = "ios")))]

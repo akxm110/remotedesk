@@ -656,7 +656,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     });
 
     _debouncerHide = Debouncer<int>(
-      Duration(milliseconds: 5000),
+      Duration(milliseconds: 3000),
       onChanged: _debouncerHideProc,
       initialValue: 0,
     );
@@ -777,13 +777,39 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     );
   }
 
+  /// [inline] is the group of window buttons inside the expanded bar; otherwise this is
+  /// the lone button a collapsed toolbar leaves behind.
   Widget _buildDraggableCollapse(
-      BuildContext context, _ToolbarEdge edge, bool isHorizontal) {
+      BuildContext context, _ToolbarEdge edge, bool isHorizontal,
+      {bool inline = false}) {
     return Obx(() {
       if (collapse.isFalse && _dragging.isFalse) {
         triggerAutoHide();
       }
       final borderRadius = _collapseHandleBorderRadius(edge);
+      if (inline) {
+        return _DraggableShowHide(
+          id: widget.id,
+          ffi: widget.ffi,
+          sessionId: widget.ffi.sessionId,
+          dragging: _dragging,
+          fraction: _fraction,
+          edge: _edge,
+          previewEdge: _previewEdge,
+          previewFraction: _previewFraction,
+          toolbarSize: _toolbarSize,
+          markDragEpoch: _markToolbarDragEpoch,
+          syncDockingOptionsAfterDragIfNeeded:
+              _syncDockingOptionsAfterDragIfNeeded,
+          isHorizontal: isHorizontal,
+          multiEdgeEnabled: _multiEdgeEnabled.value,
+          toolbarState: widget.state,
+          setFullscreen: _setFullscreen,
+          setMinimize: _minimize,
+          borderRadius: borderRadius,
+          inline: true,
+        );
+      }
       return Offstage(
         offstage: _dragging.isTrue,
         child: Material(
@@ -823,21 +849,6 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
               allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
-          pi.displaysCount.value > 1 &&
-          mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar)) {
-        return _MainMonitorSwitchButton(id: widget.id, ffi: widget.ffi);
-      } else {
-        return const Offstage();
-      }
-    }));
-    if (!isWebDesktop) {
-      toolbarItems.add(_MobileActionMenu(ffi: widget.ffi));
-    }
-
-    toolbarItems.add(Obx(() {
-      final privacyModeState = PrivacyModeState.find(widget.id);
-      if ((privacyModeState.isEmpty ||
-              allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
           pi.displaysCount.value > 1) {
         return _MonitorMenu(
             id: widget.id,
@@ -848,6 +859,22 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         return Offstage();
       }
     }));
+    toolbarItems.add(Obx(() {
+      final privacyModeState = PrivacyModeState.find(widget.id);
+      if ((privacyModeState.isEmpty ||
+              allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
+          pi.displaysCount.value > 1 &&
+          mainGetLocalBoolOptionSync(kOptionAllowMonitorSwitchMainToolbar)) {
+        return _MainMonitorSwitchButton(id: widget.id, ffi: widget.ffi);
+      } else {
+        return const Offstage();
+      }
+    }));
+    toolbarItems.add(
+        _buildDraggableCollapse(context, edge, isHorizontal, inline: true));
+    if (!isWebDesktop) {
+      toolbarItems.add(_MobileActionMenu(ffi: widget.ffi));
+    }
 
     toolbarItems
         .add(_ControlMenu(id: widget.id, ffi: widget.ffi, state: widget.state));
@@ -900,15 +927,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         ),
       ),
     );
-    final handle = _buildDraggableCollapse(context, edge, isHorizontal);
-    // The handle sits in line with the icons, so the whole toolbar is one bar.
-    final children = [toolbarMaterial, handle];
-    return Flex(
-      direction: innerAxis,
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: children,
-    );
+    return toolbarMaterial;
   }
 
   ThemeData themeData() {
@@ -1086,9 +1105,9 @@ class _MonitorMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = showMonitorsToolbar
-        ? buildMultiMonitorMenu(context)
-        : Obx(() => buildMonitorMenu(context));
+    // Every display button sits in the bar itself; the individual-window choice lives in
+    // the main settings.
+    final child = buildMultiMonitorMenu(context);
     final quarterTurns = _monitorMenuQuarterTurns(edge);
     if (quarterTurns == 0) return child;
     return RotatedBox(
@@ -3306,6 +3325,7 @@ class _DraggableShowHide extends StatefulWidget {
 
   final Function(bool) setFullscreen;
   final Function() setMinimize;
+  final bool inline;
 
   const _DraggableShowHide({
     Key? key,
@@ -3326,6 +3346,7 @@ class _DraggableShowHide extends StatefulWidget {
     required this.setFullscreen,
     required this.setMinimize,
     required this.borderRadius,
+    this.inline = false,
   }) : super(key: key);
 
   @override
@@ -3509,12 +3530,28 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
         // floats away from the top while dragging and the toolbar looks
         // unmoored. When multi-edge is on we need 2D drag for snap-to-edge.
         axis: widget.multiEdgeEnabled ? null : Axis.horizontal,
-        child: Icon(
-          widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
-          size: 24,
-          color: MyTheme.color(context).drag_indicator,
+        child: Tooltip(
+          message: '끌어서 툴바 옮기기',
+          child: MouseRegion(
+            cursor: SystemMouseCursors.grab,
+            child: SizedBox.square(
+              dimension: _ToolbarTheme.buttonSize,
+              child: Icon(
+                widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
+                size: 24,
+                color: MyTheme.color(context).drag_indicator,
+              ),
+            ),
+          ),
         ),
-        feedback: widget,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Icon(
+            widget.isHorizontal ? Icons.drag_indicator : Icons.drag_handle,
+            size: 24,
+            color: MyTheme.color(context).drag_indicator,
+          ),
+        ),
         onDragStarted: () {
           widget.markDragEpoch();
           final pointerDown = _lastPointerDown;
@@ -3537,148 +3574,83 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
 
   @override
   Widget build(BuildContext context) {
-    final ButtonStyle buttonStyle = ButtonStyle(
-      minimumSize: MaterialStateProperty.all(const Size(0, 0)),
-      padding: MaterialStateProperty.all(EdgeInsets.zero),
+    return widget.inline ? _buildInline(context) : _buildShowButton(context);
+  }
+
+  Widget _button(VoidCallback? onPressed, IconData icon, String tooltip) {
+    return _IconMenuButton(
+      tooltip: tooltip,
+      color: _ToolbarTheme.blueColor,
+      hoverColor: _ToolbarTheme.hoverBlueColor,
+      topLevel: false,
+      onPressed: onPressed,
+      icon: SizedBox.square(
+        dimension: _ToolbarTheme.buttonSize,
+        child: Icon(icon, size: 22, color: Colors.white),
+      ),
     );
+  }
+
+  /// The window buttons as part of the expanded bar, the same size as its other icons.
+  Widget _buildInline(BuildContext context) {
     final isFullscreen = stateGlobal.fullscreen;
-    const double iconSize = 24;
-
-    buttonWrapper(VoidCallback? onPressed, Widget child,
-        {Color hoverColor = _ToolbarTheme.blueColor}) {
-      final bgColor = buttonStyle.backgroundColor?.resolve({});
-      return TextButton(
-        onPressed: onPressed,
-        child: child,
-        style: buttonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.hovered)) {
-              return (bgColor ?? hoverColor).withOpacity(0.15);
-            }
-            return bgColor;
-          }),
-        ),
-      );
-    }
-
-    final axis = widget.isHorizontal ? Axis.horizontal : Axis.vertical;
-    final child = Flex(
-      direction: axis,
+    return Flex(
+      direction: widget.isHorizontal ? Axis.horizontal : Axis.vertical,
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildDraggable(context),
-        Obx(() => collapse.isTrue
-            ? _MinimizedMonitorSwitchButton(id: widget.id, ffi: widget.ffi)
-            : const Offstage()),
-        Obx(() => buttonWrapper(
-              () {
-                widget.setFullscreen(!isFullscreen.value);
-              },
-              Tooltip(
-                message: translate(
-                    isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen'),
-                child: Icon(
-                  isFullscreen.isTrue
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
-                  size: iconSize,
-                ),
-              ),
+        Obx(() => _button(
+              () => widget.setFullscreen(!isFullscreen.value),
+              isFullscreen.isTrue ? Icons.fullscreen_exit : Icons.fullscreen,
+              isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen',
             )),
         if (!isMacOS && !isWebDesktop)
           Obx(() => Offstage(
                 offstage: isFullscreen.isTrue,
-                child: buttonWrapper(
-                  () async {
-                    await stateGlobal.setFullscreenAllMonitors();
-                    _fitRemoteToWindow(widget.ffi);
-                  },
-                  Tooltip(
-                    message: '내 모니터 전체에 전체화면',
-                    child: Icon(
-                      Icons.desktop_windows_outlined,
-                      size: iconSize,
-                    ),
-                  ),
-                ),
+                child: _button(() async {
+                  await stateGlobal.setFullscreenAllMonitors();
+                  _fitRemoteToWindow(widget.ffi);
+                }, Icons.desktop_windows_outlined, '내 모니터 전체에 전체화면'),
               )),
-        buttonWrapper(
-          () => _fitRemoteToWindow(widget.ffi),
-          Tooltip(
-            message: '화면 맞춤 (창에 딱 맞게 확대/축소)',
-            child: Icon(
-              Icons.fit_screen_outlined,
-              size: iconSize,
-            ),
-          ),
-        ),
+        _button(() => _fitRemoteToWindow(widget.ffi), Icons.fit_screen_outlined,
+            '화면 맞춤 (창에 딱 맞게 확대/축소)'),
         if (!isMacOS && !isWebDesktop)
           Obx(() => Offstage(
                 offstage: isFullscreen.isFalse,
-                child: buttonWrapper(
-                  widget.setMinimize,
-                  Tooltip(
-                    message: translate('Minimize'),
-                    child: Icon(
-                      Icons.remove,
-                      size: iconSize,
-                    ),
-                  ),
-                ),
+                child: _button(widget.setMinimize, Icons.remove, 'Minimize'),
               )),
-        buttonWrapper(
-          () => setState(() {
-            widget.toolbarState.switchCollapse(widget.sessionId);
-          }),
-          Obx((() => Tooltip(
-                message: translate(
-                    collapse.isFalse ? 'Hide Toolbar' : 'Show Toolbar'),
-                child: Icon(
-                  _toolbarCollapseIcon(widget.edge.value, collapse.isTrue),
-                  size: iconSize,
-                ),
-              ))),
+        _button(
+          () => widget.toolbarState.switchCollapse(widget.sessionId),
+          _toolbarCollapseIcon(widget.edge.value, false),
+          'Hide Toolbar',
         ),
-        if (isWebDesktop)
-          Obx(() {
-            if (collapse.isFalse) {
-              return Offstage();
-            } else {
-              return buttonWrapper(
-                () => closeConnection(id: widget.id),
-                Tooltip(
-                  message: translate('Close'),
-                  child: Icon(
-                    Icons.close,
-                    size: iconSize,
-                    color: _ToolbarTheme.redColor,
-                  ),
-                ),
-                hoverColor: _ToolbarTheme.redColor,
-              ).paddingOnly(left: iconSize / 2);
-            }
-          })
       ],
     );
-    return TextButtonTheme(
-      data: TextButtonThemeData(style: buttonStyle),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .menuBarTheme
-              .style
-              ?.backgroundColor
-              ?.resolve(MaterialState.values.toSet()),
-          border: Border.all(
-            color: _ToolbarTheme.borderColor(context),
-            width: 1,
-          ),
+  }
+
+  /// All a collapsed toolbar leaves on screen: one button, a little larger than the
+  /// bar's icons, that brings the bar back.
+  Widget _buildShowButton(BuildContext context) {
+    final long = 48.0;
+    final short = 30.0;
+    return Tooltip(
+      message: translate('Show Toolbar'),
+      child: Material(
+        color: _ToolbarTheme.blueColor,
+        borderRadius: widget.borderRadius,
+        child: InkWell(
           borderRadius: widget.borderRadius,
-        ),
-        child: SizedBox(
-          height: widget.isHorizontal ? 28 : null,
-          width: widget.isHorizontal ? null : 28,
-          child: child,
+          hoverColor: _ToolbarTheme.hoverBlueColor,
+          onTap: () => widget.toolbarState.switchCollapse(widget.sessionId),
+          child: SizedBox(
+            width: widget.isHorizontal ? long : short,
+            height: widget.isHorizontal ? short : long,
+            child: Icon(
+              _toolbarCollapseIcon(widget.edge.value, true),
+              size: 28,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );

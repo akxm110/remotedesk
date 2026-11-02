@@ -751,7 +751,7 @@ pub fn get_new_version() -> String {
     (*SOFTWARE_UPDATE_URL
         .lock()
         .unwrap()
-        .rsplit('/')
+        .rsplit("&v=")
         .next()
         .unwrap_or(""))
     .to_string()

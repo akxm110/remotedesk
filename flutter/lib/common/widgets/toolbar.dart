@@ -980,7 +980,9 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
   }
 
   final privacyModeState = PrivacyModeState.find(id);
-  if (pi.isSupportMultiDisplay &&
+  // On desktop this is set once in the main settings (Display > other default options).
+  if (!isDesktop &&
+      pi.isSupportMultiDisplay &&
       (privacyModeState.isEmpty ||
           allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value)) &&
       pi.displaysCount.value > 1 &&

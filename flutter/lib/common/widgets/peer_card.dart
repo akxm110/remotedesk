@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common/widgets/conn_log_dialog.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/peer_power.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -730,6 +731,19 @@ abstract class BasePeerCard extends StatelessWidget {
     );
   }
 
+  @protected
+  MenuEntryBase<String> _connLogAction(String id) {
+    return MenuEntryButton<String>(
+      childBuilder: (TextStyle? style) => Text(
+        '접속 로그',
+        style: style,
+      ),
+      proc: () => showConnLog(id),
+      padding: menuPadding,
+      dismissOnClicked: true,
+    );
+  }
+
   /// Only available on Windows.
   @protected
   MenuEntryBase<String> _createShortCutAction(String id) {
@@ -1059,6 +1073,7 @@ class RecentPeerCard extends BasePeerCard {
       menuItems.add(_addToAb(peer));
     }
 
+    menuItems.add(_connLogAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;
@@ -1119,6 +1134,7 @@ class FavoritePeerCard extends BasePeerCard {
       menuItems.add(_addToAb(peer));
     }
 
+    menuItems.add(_connLogAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;
@@ -1178,6 +1194,7 @@ class DiscoveredPeerCard extends BasePeerCard {
       menuItems.add(_addToAb(peer));
     }
 
+    menuItems.add(_connLogAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;

@@ -830,6 +830,9 @@ impl Client {
             crate::refresh_rendezvous_server();
         }
         log::info!("rendezvous server: {}", rendezvous_server);
+        if let Err(e) = &socket {
+            crate::conn_log::add(&peer, format!("시그널 서버 {rendezvous_server} 연결 실패: {e}"));
+        }
         let mut socket = socket?;
         let mut my_addr = socket.local_addr();
         let mut signed_id_pk = Vec::new();
@@ -1041,6 +1044,10 @@ impl Client {
                                 }
                             }
                             log::info!("{} Hole Punched {} = {}", punch_type, peer, peer_addr);
+                            crate::conn_log::add(
+                                &peer,
+                                format!("상대 PC 응답: 직접 연결 시도 ({punch_type}, 상대 주소 {peer_addr})"),
+                            );
                             break 'punch_attempts;
                         }
                     }
@@ -1049,6 +1056,10 @@ impl Client {
                             "relay requested from peer, time used: {:?}, relay_server: {}",
                             start.elapsed(),
                             rr.relay_server
+                        );
+                        crate::conn_log::add(
+                            &peer,
+                            format!("상대 PC가 중계 연결을 요청함 (중계 서버 '{}')", rr.relay_server),
                         );
                         start = Instant::now();
                         let mut connect_futures = Vec::new();
@@ -1374,6 +1385,17 @@ impl Client {
             bail!("Failed to connect via rendezvous server");
         }
         let time_used = start.elapsed().as_millis() as u64;
+        crate::conn_log::add(
+            &peer,
+            format!(
+                "시그널 서버 {} 경유 응답 {}ms, 내 NAT {:?}, 상대 NAT {:?}, 같은 네트워크 {}",
+                rendezvous_server,
+                time_used,
+                nat_type,
+                peer_nat_type,
+                if is_local { "예" } else { "아니오" }
+            ),
+        );
         log::info!(
             "{} ms used to {} punch hole, relay_server: {}, {}",
             time_used,
@@ -1590,6 +1612,9 @@ impl Client {
         // policy the pc was built with Relay-only ICE (TURN configured), which already honors
         // the relay requirement, and under ws-forced relay a direct full-ICE connection is the
         // preferred outcome, not a violation.
+        if let Err(e) = &conn {
+            crate::conn_log::add(peer_id, format!("직접 연결 실패 ({typ}): {e}"));
+        }
         if (interface.is_force_relay() && typ != "WebRTC") || conn.is_err() {
             if !relay_server.is_empty() {
                 let switch_code = interface.get_switch_code();

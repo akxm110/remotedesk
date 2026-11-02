@@ -194,26 +194,9 @@ fn check_update(manually: bool) -> ResultType<()> {
     if update_url.is_empty() {
         log::debug!("No update available.");
     } else {
-        let download_url = update_url.replace("tag", "download");
-        let version = download_url.split('/').last().unwrap_or_default();
-        #[cfg(target_os = "windows")]
-        let download_url = if cfg!(feature = "flutter") {
-            let Some(arch) = crate::platform::windows::release_arch_suffix() else {
-                bail!(
-                    "Unsupported Windows release architecture: {}",
-                    std::env::consts::ARCH
-                );
-            };
-            format!(
-                "{}/rustdesk-{}-{}.{}",
-                download_url,
-                version,
-                arch,
-                if update_msi { "msi" } else { "exe" }
-            )
-        } else {
-            format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
-        };
+        // A Drive link to the installer itself, ending in `&v=<version>`.
+        let download_url = update_url;
+        let version = crate::ui_interface::get_new_version();
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url_strict(&download_url)?;
         let Some(file_path) = get_download_file_from_url(&download_url) else {
@@ -354,39 +337,21 @@ fn update_new_version(update_msi: bool, version: &str, file_path: &PathBuf) {
 }
 
 pub fn get_update_download_file_from_url(url: &str) -> Option<PathBuf> {
-    let parsed = url::Url::parse(url).ok()?;
-    // Check the raw prefix before Url normalizes default ports.
-    if !url.starts_with("https://github.com/")
-        || parsed.scheme() != "https"
-        || parsed.host_str() != Some("github.com")
-        || !parsed.username().is_empty()
-        || parsed.password().is_some()
-        || parsed.port().is_some()
-        || parsed.query().is_some()
-        || parsed.fragment().is_some()
-    {
+    // Only the exact form `common::do_check_software_update` builds.
+    let rest = url.strip_prefix("https://drive.usercontent.google.com/download?id=")?;
+    let (id, version) = rest.split_once("&export=download&confirm=t&v=")?;
+    let is_id = |s: &str| {
+        !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    };
+    let is_version =
+        |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit() || c == '.');
+    if !is_id(id) || !is_version(version) {
         return None;
     }
-
-    let mut segments = parsed.path_segments()?;
-    let owner = segments.next()?;
-    let repo = segments.next()?;
-    let releases = segments.next()?;
-    let download = segments.next()?;
-    let tag = segments.next()?;
-    let filename = segments.next()?;
-
-    if owner != "rustdesk"
-        || repo != "rustdesk"
-        || releases != "releases"
-        || download != "download"
-        || tag.is_empty()
-        || segments.next().is_some()
-        || !is_plain_update_filename(filename)
-    {
+    let filename = format!("RemoteDesk-{version}-x64.exe");
+    if !is_plain_update_filename(&filename) {
         return None;
     }
-
     Some(std::env::temp_dir().join(filename))
 }
 
@@ -660,31 +625,28 @@ mod tests {
     use super::get_download_file_from_url;
 
     #[test]
-    fn update_download_file_accepts_expected_github_asset_urls() {
+    fn update_download_file_accepts_drive_installer_urls() {
         let file = get_download_file_from_url(
-            "https://github.com/rustdesk/rustdesk/releases/download/1.4.0/rustdesk-1.4.0-x86_64.dmg",
+            "https://drive.usercontent.google.com/download?id=1AbC-d_9&export=download&confirm=t&v=1.5.10",
         )
-        .expect("valid GitHub release asset URL");
+        .expect("valid Drive installer URL");
 
         assert_eq!(
             file.file_name().and_then(|name| name.to_str()),
-            Some("rustdesk-1.4.0-x86_64.dmg")
+            Some("RemoteDesk-1.5.10-x64.exe")
         );
     }
 
     #[test]
     fn update_download_file_rejects_untrusted_or_malformed_urls() {
         for url in [
-            "http://github.com/rustdesk/rustdesk/releases/download/1/rustdesk.exe",
-            "https://example.com/rustdesk.exe",
-            "https://github.com/other/project/releases/download/1/rustdesk.exe",
-            "https://github.com/rustdesk/rustdesk/releases/download/1/",
-            "https://github.com/rustdesk/rustdesk/releases/download/1/nested/rustdesk.exe",
-            "https://github.com/rustdesk/rustdesk/releases/download/1/C:rustdesk.exe",
-            "https://user@github.com/rustdesk/rustdesk/releases/download/1/rustdesk.exe",
-            "https://github.com:443/rustdesk/rustdesk/releases/download/1/rustdesk.exe",
-            "https://github.com/rustdesk/rustdesk/releases/download/1/rustdesk.exe?download=1",
-            "https://github.com/rustdesk/rustdesk/releases/download/1/rustdesk.exe#download",
+            "http://drive.usercontent.google.com/download?id=1A&export=download&confirm=t&v=1.5.10",
+            "https://example.com/download?id=1A&export=download&confirm=t&v=1.5.10",
+            "https://drive.usercontent.google.com/download?id=&export=download&confirm=t&v=1.5.10",
+            "https://drive.usercontent.google.com/download?id=1A&export=download&confirm=t&v=",
+            "https://drive.usercontent.google.com/download?id=1A&export=download&confirm=t&v=1/../x",
+            "https://drive.usercontent.google.com/download?id=1A%2F&export=download&confirm=t&v=1.5",
+            "https://github.com/akxm110/remotedesk/releases/download/1.5.9/RemoteDesk-1.5.9-x64.exe",
             "not a url",
         ] {
             assert!(get_download_file_from_url(url).is_none(), "{url}");

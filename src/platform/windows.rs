@@ -4801,9 +4801,11 @@ pub fn wallpaper_thumbnail() -> String {
     static CACHE: Mutex<Option<(PathBuf, std::time::SystemTime, String)>> = Mutex::new(None);
     // The service runs as SYSTEM, so ask the active user's profile for the wallpaper Windows
     // keeps a copy of, before falling back to this process's own setting.
-    let transcoded = get_active_user_home()
-        .map(|h| h.join(r"AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper"));
-    let path = match transcoded.filter(|p| p.is_file()) {
+    let transcoded = signed_in_profile_dirs()
+        .into_iter()
+        .map(|h| h.join(r"AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper"))
+        .find(|p| p.is_file());
+    let path = match transcoded {
         Some(p) => p,
         None => match wallpaper::get() {
             Ok(p) if !p.is_empty() => PathBuf::from(p),
@@ -4825,6 +4827,34 @@ pub fn wallpaper_thumbnail() -> String {
     });
     *cache = Some((path, modified, thumb.clone()));
     thumb
+}
+
+/// The active user's profile first, then those of everyone signed in: a profile folder need
+/// not be named after its user (Microsoft accounts, renamed or non-ASCII user names).
+fn signed_in_profile_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = get_active_user_home().into_iter().collect();
+    let loaded = RegKey::predef(HKEY_USERS);
+    let Ok(list) = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList")
+    else {
+        return dirs;
+    };
+    let drive = std::env::var("SystemDrive").unwrap_or("C:".to_owned());
+    for sid in list.enum_keys().flatten() {
+        if !sid.starts_with("S-1-5-21-") || loaded.open_subkey(&sid).is_err() {
+            continue;
+        }
+        if let Ok(p) = list
+            .open_subkey(&sid)
+            .and_then(|k| k.get_value::<String, _>("ProfileImagePath"))
+        {
+            let p = PathBuf::from(p.replace("%SystemDrive%", &drive));
+            if !dirs.contains(&p) {
+                dirs.push(p);
+            }
+        }
+    }
+    dirs
 }
 
 fn encode_wallpaper_thumbnail(path: &std::path::Path) -> ResultType<String> {

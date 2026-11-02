@@ -2239,6 +2239,24 @@ pub fn main_wol(id: String) {
     crate::lan::send_wol(id)
 }
 
+/// The connection history kept for `id`, oldest first.
+pub fn main_get_conn_log(id: String) -> SyncReturn<String> {
+    SyncReturn(crate::conn_log::get(&id))
+}
+
+pub fn main_clear_conn_log(id: String) {
+    crate::conn_log::clear(&id)
+}
+
+/// Checks for a newer release now: its version, "" when this one is the newest, or
+/// "error:<reason>".
+pub fn main_check_update_now() -> String {
+    match crate::common::do_check_software_update() {
+        Ok(()) => get_new_version(),
+        Err(e) => format!("error:{e}"),
+    }
+}
+
 /// The ipTIME router saved for waking `id`, as JSON.
 pub fn main_get_router_wol(id: String) -> SyncReturn<String> {
     SyncReturn(crate::router_wol::get(&id))
@@ -2808,7 +2826,8 @@ pub fn main_get_common(key: String) -> String {
                 },
                 (Ok(true), true) | (Ok(false), _) => {
                     match crate::platform::windows::release_arch_suffix() {
-                        Some(arch) => format!("rustdesk-{_version}-{arch}.exe"),
+                        // The only build published is the x64 one, named by the workflow.
+                        Some(_) => format!("RemoteDesk-{_version}-x64.exe"),
                         None => "error:unsupported".to_owned(),
                     }
                 }

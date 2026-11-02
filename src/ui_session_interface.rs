@@ -333,11 +333,9 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     pub fn get_displays_as_individual_windows(&self) -> String {
-        self.lc
-            .read()
-            .unwrap()
-            .displays_as_individual_windows
-            .clone()
+        // Chosen once in the main settings; the toolbar no longer offers a per-PC switch.
+        hbb_common::config::UserDefaultConfig::load()
+            .get(hbb_common::config::keys::OPTION_DISPLAYS_AS_INDIVIDUAL_WINDOWS)
     }
 
     pub fn get_use_all_my_displays_for_the_remote_session(&self) -> String {
@@ -1811,6 +1809,7 @@ impl<T: InvokeUiSession> Interface for Session<T> {
         let received = self.lc.read().unwrap().received;
         let retry_for_relay = direct == Some(true) && !received;
         let retry = check_if_retry(msgtype, title, text, retry_for_relay);
+        crate::conn_log::add(&self.get_id(), format!("[{msgtype}] {title}: {text}"));
         self.ui_handler.msgbox(msgtype, title, text, link, retry);
     }
 
@@ -1824,6 +1823,17 @@ impl<T: InvokeUiSession> Interface for Session<T> {
 
     fn handle_peer_info(&self, mut pi: PeerInfo) {
         log::debug!("handle_peer_info :{:?}", pi);
+        crate::conn_log::add(
+            &self.get_id(),
+            format!(
+                "로그인 성공: {} ({}), 사용자 {}, 상대 버전 {}, 화면 {}개",
+                pi.hostname,
+                pi.platform,
+                pi.username,
+                pi.version,
+                pi.displays.len()
+            ),
+        );
         self.lc.write().unwrap().peer_info = Some(pi.clone());
         if pi.current_display as usize >= pi.displays.len() {
             pi.current_display = 0;

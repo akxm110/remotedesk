@@ -191,6 +191,11 @@ impl<T: InvokeUiSession> Remote<T> {
             ConnType::default()
         };
 
+        let started = Instant::now();
+        crate::conn_log::add(
+            &self.handler.get_id(),
+            format!("──── 접속 시도 ({:?}, 내 버전 {})", conn_type, crate::VERSION),
+        );
         match Client::start(
             &self.handler.get_id(),
             key,
@@ -215,6 +220,15 @@ impl<T: InvokeUiSession> Remote<T> {
                 } else {
                     stream_type
                 };
+                crate::conn_log::add(
+                    &self.handler.get_id(),
+                    format!(
+                        "연결됨: {} ({}), 암호화 {}",
+                        if direct { "직접 연결" } else { "중계 연결" },
+                        stream_type,
+                        if is_secured { "예" } else { "아니오" }
+                    ),
+                );
                 self.handler
                     .set_connection_type(is_secured, direct, stream_type); // flutter -> connection_ready
                 if !is_secured
@@ -427,6 +441,10 @@ impl<T: InvokeUiSession> Remote<T> {
                 self.handler.on_establish_connection_error(err.to_string());
             }
         }
+        crate::conn_log::add(
+            &self.handler.get_id(),
+            format!("연결 종료 (시작 후 {}초)", started.elapsed().as_secs()),
+        );
         self.handle_disconnected(round);
     }
 
@@ -2393,6 +2411,19 @@ impl<T: InvokeUiSession> Remote<T> {
                         .unwrap()
                         .set_option("wol-macs".to_owned(), macs.to_owned());
                 }
+            }
+            if pi.platform == "Windows" {
+                crate::conn_log::add(
+                &self.handler.get_id(),
+                match platform_additions
+                    .get("wallpaper_thumb")
+                    .and_then(|v| v.as_str())
+                {
+                    None => "배경화면 미리보기 없음: 상대 PC 버전이 1.5.8보다 낮습니다",
+                    Some("") => "배경화면 미리보기 없음: 상대 PC에서 배경화면 파일을 찾지 못했습니다",
+                    Some(_) => "배경화면 미리보기 받음",
+                },
+                );
             }
             if let Some(thumb) = platform_additions
                 .get("wallpaper_thumb")

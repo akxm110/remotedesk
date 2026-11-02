@@ -28,6 +28,9 @@ const double _kActionIconSize = 12;
 // How far below the tab bar a tab must be dragged to move it to a new window.
 const double _kTabDragOutDistance = _kTabBarHeight * 2;
 
+// Shown beside the app name in the title bar.
+final Future<String> _appVersion = bind.mainGetVersion();
+
 class TabInfo {
   final String key; // Notice: cm use client_id.toString() as key
   final String label;
@@ -645,10 +648,21 @@ class _DesktopTabState extends State<DesktopTab>
                         ),
                         Offstage(
                             offstage: !showTitle,
-                            child: Text(
-                              bind.mainGetAppNameSync(),
-                              style: const TextStyle(fontSize: 13),
-                            ).marginOnly(left: 2))
+                            child: Row(children: [
+                              Text(
+                                bind.mainGetAppNameSync(),
+                                style: const TextStyle(fontSize: 13),
+                              ).marginOnly(left: 2),
+                              FutureBuilder<String>(
+                                future: _appVersion,
+                                builder: (context, snapshot) => Text(
+                                  snapshot.hasData ? 'v${snapshot.data}' : '',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context).hintColor),
+                                ).marginOnly(left: 6),
+                              ),
+                            ]))
                       ]).marginOnly(
                         left: 5,
                         right: 10,
