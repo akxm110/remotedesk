@@ -4802,7 +4802,7 @@ pub fn wallpaper_thumbnail() -> String {
     // The service runs as SYSTEM, so ask the active user's profile for the wallpaper Windows
     // keeps a copy of, before falling back to this process's own setting.
     let transcoded = get_active_user_home()
-        .map(|h| h.join("AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper"));
+        .map(|h| h.join(r"AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper"));
     let path = match transcoded.filter(|p| p.is_file()) {
         Some(p) => p,
         None => match wallpaper::get() {
