@@ -117,8 +117,7 @@ fn wake_(id: &str) -> ResultType<()> {
         .unwrap_or_default();
     if macs.is_empty() {
         bail!(
-            "이 컴퓨터의 MAC 주소를 모릅니다. 컴퓨터가 켜져 있을 때 한 번 접속해 두거나, \
-             공유기 설정에서 MAC 주소를 입력해 주세요."
+            "이 컴퓨터의 MAC 주소를 모릅니다. 컴퓨터가 켜져 있을 때 한 번 접속해 두거나, 공유기 설정에서 MAC 주소를 입력해 주세요."
         );
     }
     let base = if host.starts_with("http://") || host.starts_with("https://") {
@@ -149,8 +148,7 @@ mod iptime {
     use reqwest::{blocking::Client, header::HeaderMap};
     use serde_json::{json, Value};
 
-    const CAPTCHA_HINT: &str = "공유기가 로그인할 때 보안문자(Captcha)를 요구합니다. 공유기 관리 화면 \
-        › 시스템 관리 › 관리자 설정에서 보안문자 사용을 '사용 안함' 또는 '제한 사용'으로 바꿔 주세요.";
+    const CAPTCHA_HINT: &str = "공유기가 로그인할 때 보안문자(Captcha)를 요구합니다. 공유기 관리 화면 › 시스템 관리 › 관리자 설정에서 보안문자 사용을 '사용 안함' 또는 '제한 사용'으로 바꿔 주세요.";
 
     pub fn wake(base: &str, user: &str, pass: &str, macs: &[String]) -> ResultType<()> {
         let client = Client::builder()
@@ -164,8 +162,7 @@ mod iptime {
             .map_err(|e| {
                 log::error!("router {base} unreachable: {e}");
                 anyhow!(
-                    "공유기에 연결하지 못했습니다. 주소와 포트가 맞는지, 공유기에서 원격 관리 포트를 \
-                     켰는지 확인해 주세요. (같은 공유기 안에서는 원격 관리 주소로 접속되지 않습니다)"
+                    "공유기에 연결하지 못했습니다. 주소와 포트가 맞는지, 공유기에서 원격 관리 포트를 켰는지 확인해 주세요. (같은 공유기 안에서는 원격 관리 주소로 접속되지 않습니다)"
                 )
             })?;
         let is_new_ui = bootstrap.status().is_success()
