@@ -38,6 +38,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
 
 import '../common.dart';
+import '../desktop/widgets/clip_progress.dart';
 import '../utils/image.dart' as img;
 import '../common/widgets/dialog.dart';
 import 'input_model.dart';
@@ -121,7 +122,8 @@ class FfiModel with ChangeNotifier {
   Timer? _restartReconnectDelayTimer;
   var _reconnects = 1;
   var _punchRetries = 0;
-  static const kMaxPunchRetries = 5;
+  var _mainHiddenForSession = false;
+  static const kMaxPunchRetries = 15;
   DateTime? _offlineReconnectStartTime;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
@@ -356,6 +358,8 @@ class FfiModel with ChangeNotifier {
         handleCursorId(evt);
       } else if (name == 'cursor_position') {
         await parent.target?.cursorModel.updateCursorPosition(evt, peerId);
+      } else if (name == 'clip_progress') {
+        ClipProgress.update(evt);
       } else if (name == 'clipboard') {
         Clipboard.setData(ClipboardData(text: evt['content']));
       } else if (name == 'permission') {
@@ -1020,7 +1024,7 @@ class FfiModel with ChangeNotifier {
       } else {
         final elapsed =
             DateTime.now().difference(_offlineReconnectStartTime!).inSeconds;
-        if (elapsed < 30) {
+        if (elapsed < 60) {
           return true;
         }
       }
@@ -1476,6 +1480,15 @@ class FfiModel with ChangeNotifier {
         _reconnects = 1;
         _offlineReconnectStartTime = null;
         _punchRetries = 0;
+        if (!_mainHiddenForSession &&
+            connType == ConnType.defaultConn &&
+            isDesktop &&
+            !isMainDesktopWindow) {
+          // Once per session, so a main window shown again by hand stays up across reconnects.
+          _mainHiddenForSession = true;
+          rustDeskWinManager.call(
+              WindowType.Main, kWindowEventHideMainToTray, '');
+        }
         resetRestartReconnectState();
         waitForFirstImage.value = true;
         isRefreshing = false;

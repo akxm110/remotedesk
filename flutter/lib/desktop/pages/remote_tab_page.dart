@@ -10,6 +10,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/desktop/pages/remote_page.dart';
+import 'package:flutter_hbb/desktop/widgets/clip_progress.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/desktop/widgets/material_mod_popup_menu.dart'
@@ -139,6 +140,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
         tail: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const ClipProgressLabel(),
             _RelativeMouseModeHint(tabController: tabController),
             const AddButton(),
           ],

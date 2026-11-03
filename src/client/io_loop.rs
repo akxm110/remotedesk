@@ -20,11 +20,13 @@ const KCP_CLOSE_REASON_FLUSH_DELAY: Duration = Duration::from_millis(30);
 const KCP_CLOSE_REASON_GONE_DEADLINE: Duration = Duration::from_millis(500);
 // Grace after ICE reports Disconnected, which it does ~5s after it stops hearing from the peer,
 // for ~8s in total. Disconnected is transient by design, so this waits out a Wi-Fi roam or a
-// sleep/wake rather than acting on the first hint.
-const WEBRTC_SUSPECT_GRACE: Duration = Duration::from_secs(3);
+// sleep/wake rather than acting on the first hint. Longer than upstream's 3s: a phone link
+// (tethering, hotspot) stalls for several seconds on a cell handover and then carries on, while
+// the reconnect this would start often fails to get through its carrier NAT again.
+const WEBRTC_SUSPECT_GRACE: Duration = Duration::from_secs(10);
 // KCP gets no such hint, only how long since a packet arrived; its endpoint pings an idle peer
-// about every 2s, so this is several missed pings, and matches the 8s WebRTC arrives at.
-const KCP_PEER_SILENCE_LIMIT: Duration = Duration::from_secs(8);
+// about every 2s, so this is several missed pings, and matches the ~15s WebRTC arrives at.
+const KCP_PEER_SILENCE_LIMIT: Duration = Duration::from_secs(15);
 #[cfg(feature = "unix-file-copy-paste")]
 use crate::{clipboard::try_empty_clipboard_files, clipboard_file::unix_file_clip};
 use base::{
@@ -523,6 +525,8 @@ impl<T: InvokeUiSession> Remote<T> {
                         if matches!(&clip, clipboard::ClipboardFile::FormatList { .. }) {
                             self.initial_clipboard_pending = false;
                         }
+                        #[cfg(all(target_os = "windows", feature = "flutter"))]
+                        crate::clip_progress::to_peer(&self.handler.get_id(), &clip);
                         let msg = crate::clipboard_file::clip_2_msg(clip);
                         allow_err!(peer.send(&msg).await);
                     }
@@ -2640,6 +2644,8 @@ impl<T: InvokeUiSession> Remote<T> {
             log::warn!("failed to decode cliprdr msg from server peer");
             return;
         };
+        #[cfg(all(target_os = "windows", feature = "flutter"))]
+        crate::clip_progress::from_peer(&self.handler.get_id(), &clip);
 
         let is_stopping_allowed = clip.is_beginning_message();
         let file_transfer_enabled = self.handler.is_file_clipboard_required();

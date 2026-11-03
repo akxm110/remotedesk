@@ -789,6 +789,8 @@ class WindowActionPanelState extends State<WindowActionPanel> {
         if (!kUseCompatibleUiMode)
           Row(
             children: [
+              if (widget.isMainWindow && widget.showMinimize && isWindows)
+                const _HideToTrayButton(),
               if (widget.showMinimize && !isMacOS)
                 ActionIcon(
                   message: 'Minimize',
@@ -1340,6 +1342,41 @@ class _ActionIconState extends State<ActionIcon> {
                     size: widget.iconSize,
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Half the width of the minimize button: hides the main window to the tray, as closing it does.
+class _HideToTrayButton extends StatelessWidget {
+  const _HideToTrayButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final hover = false.obs;
+    return Tooltip(
+      message: '알림 영역으로 내리기',
+      waitDuration: const Duration(seconds: 1),
+      child: InkWell(
+        hoverColor: MyTheme.tabbar(context).hoverColor,
+        onHover: (v) => hover.value = v,
+        onTap: () async {
+          if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
+            await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
+          }
+          await windowManager.hide();
+        },
+        child: SizedBox(
+          height: _kTabBarHeight - 1,
+          width: (_kTabBarHeight - 1) / 2,
+          child: Obx(() => Icon(
+                Icons.keyboard_double_arrow_down,
+                size: 13,
+                color: hover.value
+                    ? MyTheme.accent
+                    : MyTheme.tabbar(context).unSelectedIconColor,
+              )),
         ),
       ),
     );

@@ -50,6 +50,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   var watchIsCanRecordAudio = false;
   Timer? _updateTimer;
   bool isCardClosed = false;
+  bool _hiddenForRemote = false;
 
   final RxBool _editHover = false.obs;
   final RxBool _block = false.obs;
@@ -797,11 +798,20 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         await rustDeskWinManager.registerActiveWindow(call.arguments["id"]);
       } else if (call.method == kWindowEventHide) {
         await rustDeskWinManager.unregisterActiveWindow(call.arguments['id']);
+        // The last remote window closed: bring back the main window it sent to the tray.
+        if (_hiddenForRemote &&
+            rustDeskWinManager
+                .getActiveWindows()
+                .every((id) => id == kMainWindowId)) {
+          _hiddenForRemote = false;
+          await windowOnTop(null);
+        }
       } else if (call.method == kWindowEventHideMainToTray) {
         // Same as closing the main window: it stays reachable from the tray.
         if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
           await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
         }
+        _hiddenForRemote = true;
         await windowManager.hide();
       } else if (call.method == kWindowConnect) {
         await connectMainDesktop(
