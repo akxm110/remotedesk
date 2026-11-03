@@ -591,7 +591,7 @@ mod iptime {
     /// Firmware 14 and older, reached from inside its LAN: turns on the remote admin port when
     /// it is off and reads the registered ipTIME DDNS name.
     pub fn setup_old_ui(client: &Client, base: &str, user: &str, pass: &str) -> ResultType<Remote> {
-        let body = client
+        let resp = client
             .post(format!("{base}/sess-bin/login_handler.cgi"))
             .header("Referer", format!("{base}/sess-bin/login_session.cgi"))
             .form(&[
@@ -603,9 +603,10 @@ mod iptime {
                 ("default_passwd", ""),
                 ("captcha_code", ""),
             ])
-            .send()?
-            .text()?;
-        let Some(session) = set_cookie_in_script(&body) else {
+            .send()?;
+        let header_session = session_cookie(resp.headers());
+        let body = resp.text()?;
+        let Some(session) = set_cookie_in_script(&body).or(header_session) else {
             if body.to_lowercase().contains("captcha") {
                 bail!("{CAPTCHA_HINT}");
             }
@@ -622,6 +623,14 @@ mod iptime {
                 .text()?)
         };
         let access = page("tmenu=firewallconf&smenu=accesslist")?;
+        if input_tag(&access, "rmgmt_chk").is_none() {
+            log::error!(
+                "router accesslist has no rmgmt_chk ({} bytes): {}",
+                access.len(),
+                access.chars().take(300).collect::<String>()
+            );
+            bail!("공유기에 로그인했지만 '공유기 접속 관리' 화면을 읽지 못했습니다. 공유기 관리 화면에서 로그아웃한 뒤 다시 시도해 주세요.");
+        }
         let mut warnings = Vec::new();
         // The list of outside addresses allowed to reach the admin page.
         let ext_on = input_checked(&access, "ext_chk");
@@ -837,13 +846,17 @@ mod iptime {
 
     /// The session id from `setCookie('...')` in the old login page's script.
     fn set_cookie_in_script(body: &str) -> Option<String> {
-        let rest = &body[body.find("setCookie(")? + "setCookie(".len()..];
-        let rest = rest.trim_start_matches(|c| c == '\'' || c == '"');
-        let id: String = rest
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric())
-            .collect();
-        (!id.is_empty()).then_some(id)
+        // Some firmware also defines `function setCookie(name)` in the same page; only a call
+        // with a quoted literal carries the session id.
+        body.match_indices("setCookie(").find_map(|(i, pat)| {
+            let rest = &body[i + pat.len()..];
+            let rest = rest.strip_prefix('\'').or_else(|| rest.strip_prefix('"'))?;
+            let id: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric())
+                .collect();
+            (id.len() >= 8).then_some(id)
+        })
     }
 }
 
