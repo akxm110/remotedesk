@@ -59,17 +59,30 @@ class _RouterSelfSettingState extends State<RouterSelfSetting> {
 Future<void> showRouterSelfSetup() async {
   final user = TextEditingController();
   final pass = TextEditingController();
+  // Empty: the default gateway. Filled with what was searched, so a retry can edit it.
+  final router = TextEditingController();
   Map<String, dynamic>? found;
   Map<String, dynamic>? result;
   String? error;
   bool busy = false;
-  bool detecting = false;
+  bool searching = false;
 
   await gFFI.dialogManager.show((setState, close, context) {
-    if (found == null && !detecting) {
-      detecting = true;
-      bind.mainRouterSelfDetect().then((s) => setState(() => found = _json(s)));
+    void search() {
+      searching = true;
+      found = null;
+      error = null;
+      bind.mainRouterSelfDetect(router: router.text.trim()).then((s) {
+        setState(() {
+          searching = false;
+          found = _json(s);
+          final addr = found?['gateway'] as String?;
+          if (router.text.trim().isEmpty && addr != null) router.text = addr;
+        });
+      });
     }
+
+    if (found == null && !searching) search();
 
     Future<void> submit() async {
       if (busy || user.text.trim().isEmpty || pass.text.isEmpty) return;
@@ -78,7 +91,7 @@ Future<void> showRouterSelfSetup() async {
         error = null;
       });
       final r = _json(await bind.mainRouterSelfSetup(
-          user: user.text.trim(), pass: pass.text));
+          user: user.text.trim(), pass: pass.text, router: router.text.trim()));
       if (r['ok'] == true) {
         // The Windows half needs administrator rights, so it gets its own UAC prompt.
         await bind.mainRouterSelfPrepareWindows();
@@ -157,6 +170,28 @@ Future<void> showRouterSelfSetup() async {
               f['wired'] == true
                   ? '랜선 연결 · MAC ${f['mac']}'
                   : '와이파이 연결입니다. 꺼진 상태에서 켜려면 랜선으로 연결해야 합니다.'),
+        ],
+        if (f != null && f['iptime'] != true) ...[
+          const SizedBox(height: 10),
+          const Text(
+              '공유기 주소가 다르면 직접 입력하고 다시 찾아 주세요. '
+              '공유기 관리 화면에 들어갈 때 쓰는 주소입니다.',
+              style: TextStyle(fontSize: 12)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: DialogTextField(
+                    title: '공유기 주소',
+                    hintText: '예: 192.168.0.1',
+                    controller: router),
+              ),
+              const SizedBox(width: 8),
+              dialogButton('다시 찾기',
+                      onPressed: () => setState(search), isOutline: true)
+                  .marginOnly(bottom: 4),
+            ],
+          ),
         ],
         const SizedBox(height: 14),
         const Text('공유기 관리자 아이디와 비밀번호만 입력하면 나머지는 자동으로 설정합니다.',

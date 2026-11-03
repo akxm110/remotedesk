@@ -2272,14 +2272,15 @@ pub fn main_wake_peer_via_router(id: String) -> String {
     crate::router_wol::wake(&id)
 }
 
-/// This PC's network link and router for the remote power-on setup, as JSON.
-pub fn main_router_self_detect() -> String {
-    crate::router_wol::this_pc_detect()
+/// This PC's network link and the router at `router` (empty: the default gateway) for the
+/// remote power-on setup, as JSON.
+pub fn main_router_self_detect(router: String) -> String {
+    crate::router_wol::this_pc_detect(&router)
 }
 
 /// Sets up remote power-on for this PC through its ipTIME router; JSON with `error` on failure.
-pub fn main_router_self_setup(user: String, pass: String) -> String {
-    crate::router_wol::this_pc_setup(&user, &pass)
+pub fn main_router_self_setup(user: String, pass: String, router: String) -> String {
+    crate::router_wol::this_pc_setup(&user, &pass, &router)
 }
 
 pub fn main_router_self_status() -> SyncReturn<String> {

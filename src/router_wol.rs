@@ -198,13 +198,30 @@ fn lan_client() -> ResultType<reqwest::blocking::Client> {
         .build()?)
 }
 
-/// This PC's link and router for the setup dialog, as JSON.
-pub fn this_pc_detect() -> String {
+/// The router's LAN address: what the user typed, or else the default gateway. The router is
+/// not the gateway behind a second router or when the ipTIME runs as an access point.
+fn router_addr(net: &LocalNet, typed: &str) -> String {
+    let typed = typed
+        .trim()
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .trim_end_matches('/');
+    if typed.is_empty() {
+        net.gateway.clone()
+    } else {
+        typed.to_owned()
+    }
+}
+
+/// This PC's link and the router at `router` (the default gateway when empty) for the setup
+/// dialog, as JSON.
+pub fn this_pc_detect(router: &str) -> String {
     let detected = (|| -> ResultType<serde_json::Value> {
         let net = local_net()?;
-        let router = iptime::probe(&lan_client()?, &format!("http://{}", net.gateway));
+        let addr = router_addr(&net, router);
+        let router = iptime::probe(&lan_client()?, &format!("http://{addr}"));
         Ok(serde_json::json!({
-            "gateway": net.gateway,
+            "gateway": addr,
             "mac": net.mac,
             "wired": net.wired,
             "adapter": net.adapter,
@@ -220,8 +237,8 @@ pub fn this_pc_detect() -> String {
 
 /// Turns on remote power-on for this PC: checks the router login, opens its remote admin port
 /// when it is closed and keeps what controllers need. JSON with `error` on failure.
-pub fn this_pc_setup(user: &str, pass: &str) -> String {
-    match this_pc_setup_(user, pass) {
+pub fn this_pc_setup(user: &str, pass: &str, router: &str) -> String {
+    match this_pc_setup_(user, pass, router) {
         Ok(v) => v.to_string(),
         Err(e) => {
             log::error!("router self setup failed: {e}");
@@ -230,7 +247,7 @@ pub fn this_pc_setup(user: &str, pass: &str) -> String {
     }
 }
 
-fn this_pc_setup_(user: &str, pass: &str) -> ResultType<serde_json::Value> {
+fn this_pc_setup_(user: &str, pass: &str, router: &str) -> ResultType<serde_json::Value> {
     let net = local_net()?;
     if !net.wired {
         bail!("이 컴퓨터는 무선(와이파이)으로 연결되어 있습니다. 꺼진 상태에서 켜려면 공유기에 랜선으로 연결한 뒤 다시 설정해 주세요.");
@@ -239,9 +256,10 @@ fn this_pc_setup_(user: &str, pass: &str) -> ResultType<serde_json::Value> {
         bail!("랜카드의 MAC 주소를 읽지 못했습니다.");
     }
     let client = lan_client()?;
-    let base = format!("http://{}", net.gateway);
+    let addr = router_addr(&net, router);
+    let base = format!("http://{addr}");
     let Some((_, new_ui)) = iptime::probe(&client, &base) else {
-        bail!("공유기({})가 ipTIME이 아니거나 응답하지 않습니다.", net.gateway);
+        bail!("공유기({addr})가 ipTIME이 아니거나 응답하지 않습니다.");
     };
     let remote = if new_ui {
         iptime::setup_new_ui(&client, &base, user, pass)?
