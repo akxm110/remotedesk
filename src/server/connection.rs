@@ -1976,6 +1976,9 @@ impl Connection {
                 json!(privacy_mode::get_supported_privacy_mode_impl()),
             );
             platform_additions.insert("wol_macs".into(), json!(crate::lan::get_wol_macs()));
+            if let Some(router) = crate::router_wol::this_pc_additions() {
+                platform_additions.insert("router_wol".into(), router);
+            }
             platform_additions.insert(
                 "wallpaper_thumb".into(),
                 json!(hbb_common::tokio::task::spawn_blocking(

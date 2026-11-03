@@ -2412,6 +2412,9 @@ impl<T: InvokeUiSession> Remote<T> {
                         .set_option("wol-macs".to_owned(), macs.to_owned());
                 }
             }
+            if let Some(router) = platform_additions.get("router_wol") {
+                crate::router_wol::save_from_peer(&self.handler.get_id(), router);
+            }
             if pi.platform == "Windows" {
                 crate::conn_log::add(
                 &self.handler.get_id(),

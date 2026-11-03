@@ -2272,6 +2272,29 @@ pub fn main_wake_peer_via_router(id: String) -> String {
     crate::router_wol::wake(&id)
 }
 
+/// This PC's network link and router for the remote power-on setup, as JSON.
+pub fn main_router_self_detect() -> String {
+    crate::router_wol::this_pc_detect()
+}
+
+/// Sets up remote power-on for this PC through its ipTIME router; JSON with `error` on failure.
+pub fn main_router_self_setup(user: String, pass: String) -> String {
+    crate::router_wol::this_pc_setup(&user, &pass)
+}
+
+pub fn main_router_self_status() -> SyncReturn<String> {
+    SyncReturn(crate::router_wol::this_pc_status())
+}
+
+pub fn main_router_self_off() {
+    crate::router_wol::this_pc_off()
+}
+
+/// Turns on Wake-on-LAN in Windows through a UAC prompt.
+pub fn main_router_self_prepare_windows() -> bool {
+    crate::router_wol::this_pc_prepare_windows()
+}
+
 /// Wakes the powered-off `id` through the online machines on its LAN: the number of machines
 /// asked, -1 when its MACs are unknown, -2 when the request failed.
 pub fn main_wake_peer(id: String) -> i32 {
