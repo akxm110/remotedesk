@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
@@ -51,6 +52,23 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Timer? _updateTimer;
   bool isCardClosed = false;
   bool _hiddenForRemote = false;
+
+  /// The last remote window closed: bring back the main window it sent to the tray. Asks the
+  /// windows themselves rather than the active-window list, which can keep stale ids.
+  Future<void> _showMainIfNoRemoteWindow() async {
+    // The closing window is still hiding when it reports.
+    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      for (final id in await rustDeskWinManager.getAllSubWindowIds()) {
+        if (!await WindowController.fromWindowId(id).isHidden()) return;
+      }
+    } catch (e) {
+      debugPrint('check remote windows: $e');
+    }
+    if (!_hiddenForRemote) return;
+    _hiddenForRemote = false;
+    await windowOnTop(null);
+  }
 
   final RxBool _editHover = false.obs;
   final RxBool _block = false.obs;
@@ -798,14 +816,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         await rustDeskWinManager.registerActiveWindow(call.arguments["id"]);
       } else if (call.method == kWindowEventHide) {
         await rustDeskWinManager.unregisterActiveWindow(call.arguments['id']);
-        // The last remote window closed: bring back the main window it sent to the tray.
-        if (_hiddenForRemote &&
-            rustDeskWinManager
-                .getActiveWindows()
-                .every((id) => id == kMainWindowId)) {
-          _hiddenForRemote = false;
-          await windowOnTop(null);
-        }
+        if (_hiddenForRemote) _showMainIfNoRemoteWindow();
       } else if (call.method == kWindowEventHideMainToTray) {
         // Same as closing the main window: it stays reachable from the tray.
         if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {

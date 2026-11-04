@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/desktop/widgets/changelog_dialog.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -118,7 +119,7 @@ class UpdateBanner extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   minimumSize: Size.zero),
-              onPressed: () => launchUrl(Uri.parse(updateUrl)),
+              onPressed: showChangelog,
               child: const Text('변경 내역 보기', style: TextStyle(fontSize: 11.5)),
             ),
           ),

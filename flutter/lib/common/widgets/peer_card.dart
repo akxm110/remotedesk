@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/widgets/conn_log_dialog.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/peer_power.dart';
+import 'package:flutter_hbb/common/widgets/peer_memo.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/peer_tab_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -162,9 +163,6 @@ class _PeerCardState extends State<_PeerCard>
   }
 
   makeChild(bool isPortrait, Peer peer) {
-    final name = hideUsernameOnCard == true
-        ? peer.hostname
-        : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
     final greyStyle = TextStyle(
         fontSize: 11,
         color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.6));
@@ -228,20 +226,12 @@ class _PeerCardState extends State<_PeerCard>
                       Row(
                         children: [
                           buildWakingLabel(peer),
-                          Flexible(
-                            child: Tooltip(
-                              message: name,
-                              waitDuration: const Duration(seconds: 1),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  name,
-                                  style: isPortrait ? null : greyStyle,
-                                  textAlign: TextAlign.start,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
+                          PeerIdCopy(peer.id,
+                              style: isPortrait ? null : greyStyle),
+                          Expanded(
+                            child: PeerMemoLine(peer.id,
+                                    style: isPortrait ? null : greyStyle)
+                                .marginOnly(left: 6),
                           ),
                           if (showNote)
                             Expanded(
@@ -268,6 +258,7 @@ class _PeerCardState extends State<_PeerCard>
                     ],
                   ).marginOnly(top: 2),
                 ),
+                if (!isPortrait) buildMemoButton(context, peer),
                 if (!isPortrait) buildPowerButton(context, peer),
                 isPortrait
                     ? checkBoxOrActionMorePortrait(peer)
@@ -318,9 +309,6 @@ class _PeerCardState extends State<_PeerCard>
       BuildContext context, Peer peer, Rx<BoxDecoration?> deco) {
     hideUsernameOnCard ??=
         bind.mainGetBuildinOption(key: kHideUsernameOnCard) == 'Y';
-    final name = hideUsernameOnCard == true
-        ? peer.hostname
-        : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
     final wallpaper = peerWallpaperThumb(peer.id);
     final child = Card(
       color: Colors.transparent,
@@ -359,25 +347,15 @@ class _PeerCardState extends State<_PeerCard>
                                             size: 60)
                                         : const SizedBox.square(dimension: 60),
                                   ),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Tooltip(
-                                          message: name,
-                                          waitDuration:
-                                              const Duration(seconds: 1),
-                                          child: Text(
-                                            name,
-                                            style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12),
-                                            textAlign: TextAlign.center,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  PeerIdCopy(peer.id,
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 12),
+                                      alignment: MainAxisAlignment.center),
+                                  PeerMemoLine(peer.id,
+                                      style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10.5),
+                                      textAlign: TextAlign.center),
                                   if (_showNote(peer))
                                     Row(
                                       children: [
@@ -422,6 +400,7 @@ class _PeerCardState extends State<_PeerCard>
                           style: Theme.of(context).textTheme.titleSmall,
                         )),
                       ]).paddingSymmetric(vertical: 8)),
+                      buildMemoButton(context, peer),
                       buildPowerButton(context, peer),
                       checkBoxOrActionMoreLandscape(peer, isTile: false),
                     ],
