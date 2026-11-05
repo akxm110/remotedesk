@@ -636,6 +636,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
   @override
   initState() {
     super.initState();
+    stateGlobal.updateSeamToolbarCenter();
 
     final cached = _cachedToolbarDockingOptions(widget.ffi.sessionId);
     final multiEdgeEnabled =
@@ -718,7 +719,12 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
         }
       });
 
-      final spanCenter = stateGlobal.spanToolbarCenter.value;
+      // A toolbar left at the default center keeps off the seam of a window across monitors;
+      // one dragged elsewhere stays where it was put.
+      final spanCenter = stateGlobal.spanToolbarCenter.value ??
+          ((_fraction.value - 0.5).abs() < 0.02
+              ? stateGlobal.seamToolbarCenter.value
+              : null);
       final fraction = spanCenter != null && edge == _ToolbarEdge.top
           ? _spanToolbarFraction(spanCenter, MediaQuery.of(context).size.width,
               _toolbarSize.value?.width ?? 360)
@@ -3577,21 +3583,27 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
     return widget.inline ? _buildInline(context) : _buildShowButton(context);
   }
 
-  Widget _button(VoidCallback? onPressed, IconData icon, String tooltip) {
+  static const _disabledColor = Color(0xFF9E9E9E);
+
+  /// Green when it can be used now, grey (and inert) when not, so every button keeps its place.
+  Widget _button(VoidCallback? onPressed, IconData icon, String tooltip,
+      {bool enabled = true}) {
     return _IconMenuButton(
-      tooltip: tooltip,
-      color: _ToolbarTheme.blueColor,
-      hoverColor: _ToolbarTheme.hoverBlueColor,
+      tooltip: enabled ? tooltip : '$tooltip (지금은 사용할 수 없음)',
+      color: enabled ? _ToolbarTheme.blueColor : _disabledColor,
+      hoverColor: enabled ? _ToolbarTheme.hoverBlueColor : _disabledColor,
       topLevel: false,
-      onPressed: onPressed,
+      onPressed: enabled ? onPressed : null,
       icon: SizedBox.square(
         dimension: _ToolbarTheme.buttonSize,
-        child: Icon(icon, size: 22, color: Colors.white),
+        child: Icon(icon,
+            size: 22, color: enabled ? Colors.white : Colors.white70),
       ),
     );
   }
 
-  /// The window buttons as part of the expanded bar, the same size as its other icons.
+  /// The window buttons as part of the expanded bar, the same size as its other icons. Each
+  /// button always shows, in the same place; the ones that do not apply right now are grey.
   Widget _buildInline(BuildContext context) {
     final isFullscreen = stateGlobal.fullscreen;
     return Flex(
@@ -3599,26 +3611,21 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildDraggable(context),
-        Obx(() => _button(
-              () => widget.setFullscreen(!isFullscreen.value),
-              isFullscreen.isTrue ? Icons.fullscreen_exit : Icons.fullscreen,
-              isFullscreen.isTrue ? 'Exit Fullscreen' : 'Fullscreen',
-            )),
+        Obx(() => _button(() => widget.setFullscreen(true), Icons.fullscreen,
+            '전체화면', enabled: isFullscreen.isFalse)),
         if (!isMacOS && !isWebDesktop)
-          Obx(() => Offstage(
-                offstage: isFullscreen.isTrue,
-                child: _button(() async {
-                  await stateGlobal.setFullscreenAllMonitors();
-                  _fitRemoteToWindow(widget.ffi);
-                }, Icons.desktop_windows_outlined, '내 모니터 전체에 전체화면'),
-              )),
+          Obx(() => _button(() async {
+                await stateGlobal.setFullscreenAllMonitors();
+                _fitRemoteToWindow(widget.ffi);
+              }, Icons.desktop_windows_outlined, '내 모니터 전체에 전체화면',
+                  enabled: isFullscreen.isFalse)),
+        Obx(() => _button(() => widget.setFullscreen(false),
+            Icons.fullscreen_exit, '전체화면 나가기',
+            enabled: isFullscreen.isTrue)),
         _button(() => _fitRemoteToWindow(widget.ffi), Icons.fit_screen_outlined,
             '화면 맞춤 (창에 딱 맞게 확대/축소)'),
         if (!isMacOS && !isWebDesktop)
-          Obx(() => Offstage(
-                offstage: isFullscreen.isFalse,
-                child: _button(widget.setMinimize, Icons.remove, 'Minimize'),
-              )),
+          _button(widget.setMinimize, Icons.remove, 'Minimize'),
         _button(
           () => widget.toolbarState.switchCollapse(widget.sessionId),
           _toolbarCollapseIcon(widget.edge.value, false),

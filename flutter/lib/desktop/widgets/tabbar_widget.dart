@@ -402,6 +402,7 @@ class _DesktopTabState extends State<DesktopTab>
   @override
   void onWindowMaximize() {
     stateGlobal.setMinimized(false);
+    stateGlobal.updateSeamToolbarCenter();
     _setMaximized(true);
     super.onWindowMaximize();
   }
@@ -409,6 +410,7 @@ class _DesktopTabState extends State<DesktopTab>
   @override
   void onWindowUnmaximize() {
     stateGlobal.setMinimized(false);
+    stateGlobal.updateSeamToolbarCenter();
     _setMaximized(false);
     super.onWindowUnmaximize();
   }
@@ -429,12 +431,14 @@ class _DesktopTabState extends State<DesktopTab>
   @override
   void onWindowMoved() {
     _saveFrame();
+    stateGlobal.updateSeamToolbarCenter();
     super.onWindowMoved();
   }
 
   @override
   void onWindowResized() {
     _saveFrame();
+    stateGlobal.updateSeamToolbarCenter();
     super.onWindowResized();
   }
 

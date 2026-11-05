@@ -54,10 +54,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   bool _hiddenForRemote = false;
 
   /// The last remote window closed: bring back the main window it sent to the tray. Asks the
-  /// windows themselves rather than the active-window list, which can keep stale ids.
+  /// windows themselves rather than the active-window list, which can keep stale ids. The
+  /// closing window hides itself before it reports, so it already counts as hidden.
   Future<void> _showMainIfNoRemoteWindow() async {
-    // The closing window is still hiding when it reports.
-    await Future.delayed(const Duration(milliseconds: 300));
     try {
       for (final id in await rustDeskWinManager.getAllSubWindowIds()) {
         if (!await WindowController.fromWindowId(id).isHidden()) return;
@@ -815,8 +814,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       } else if (call.method == kWindowEventShow) {
         await rustDeskWinManager.registerActiveWindow(call.arguments["id"]);
       } else if (call.method == kWindowEventHide) {
+        // Before unregistering: with the main window hidden, the last window leaving the
+        // active list makes onActiveWindowChanged shut the whole UI down.
+        if (_hiddenForRemote) await _showMainIfNoRemoteWindow();
+        if (_hiddenForRemote &&
+            rustDeskWinManager
+                .getActiveWindows()
+                .every((id) => id == call.arguments['id'])) {
+          _hiddenForRemote = false;
+          await windowOnTop(null);
+        }
         await rustDeskWinManager.unregisterActiveWindow(call.arguments['id']);
-        if (_hiddenForRemote) _showMainIfNoRemoteWindow();
       } else if (call.method == kWindowEventHideMainToTray) {
         // Same as closing the main window: it stays reachable from the tray.
         if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {

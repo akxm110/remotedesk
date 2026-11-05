@@ -99,6 +99,28 @@ class StateGlobal {
   // Center of the leftmost monitor as a fraction of the spanned window width,
   // set only while fullscreen spans all local monitors.
   final spanToolbarCenter = Rxn<double>();
+  // The same for a window that is not fullscreen but still covers more than one monitor:
+  // the center of its part on the leftmost one, so a centered toolbar avoids the seam.
+  final seamToolbarCenter = Rxn<double>();
+
+  Future<void> updateSeamToolbarCenter() async {
+    if (isWebDesktop || isMainDesktopWindow) return;
+    try {
+      final frame = await WindowController.fromWindowId(windowId).getFrame();
+      final parts = (await getScreenRectList())
+          .map((r) => r.intersect(frame))
+          .where((r) => r.width > 1 && r.height > 1)
+          .toList();
+      if (parts.length < 2 || frame.width <= 0) {
+        seamToolbarCenter.value = null;
+        return;
+      }
+      final leftmost = parts.reduce((a, b) => a.left <= b.left ? a : b);
+      seamToolbarCenter.value = (leftmost.center.dx - frame.left) / frame.width;
+    } catch (_) {
+      // Leave the toolbar where it was.
+    }
+  }
 
   Future<void> setFullscreenAllMonitors() async {
     if (_fullscreen.isTrue || isWebDesktop) {
