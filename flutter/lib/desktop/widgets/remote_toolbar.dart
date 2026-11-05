@@ -339,6 +339,9 @@ class _ToolbarTheme {
   static const Color hoverBlueColor = MyTheme.accent;
   static Color inactiveColor = Colors.grey[800]!;
   static Color hoverInactiveColor = Colors.grey[850]!;
+  // Real blue (blueColor is the theme's green) for the pin/hide pair and the taskbar mode.
+  static const Color pinBlueColor = Color(0xFF1E88E5);
+  static const Color hoverPinBlueColor = Color(0xFF1565C0);
 
   static const Color redColor = Colors.redAccent;
   static const Color hoverRedColor = Colors.red;
@@ -851,6 +854,17 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       BuildContext context, _ToolbarEdge edge, bool isHorizontal) {
     final List<Widget> toolbarItems = [];
     toolbarItems.add(_PinMenu(state: widget.state));
+    toolbarItems.add(_IconMenuButton(
+      tooltip: 'Hide Toolbar',
+      color: _ToolbarTheme.pinBlueColor,
+      hoverColor: _ToolbarTheme.hoverPinBlueColor,
+      onPressed: () => widget.state.switchCollapse(widget.ffi.sessionId),
+      icon: SizedBox.square(
+        dimension: _ToolbarTheme.buttonSize,
+        child: Icon(_toolbarCollapseIcon(edge, false),
+            size: 22, color: Colors.white),
+      ),
+    ));
     toolbarItems.add(Obx(() {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
@@ -976,11 +990,8 @@ class _PinMenu extends StatelessWidget {
         assetName: state.pin ? "assets/pinned.svg" : "assets/unpinned.svg",
         tooltip: state.pin ? 'Unpin Toolbar' : 'Pin Toolbar',
         onPressed: state.switchPin,
-        color:
-            state.pin ? _ToolbarTheme.blueColor : _ToolbarTheme.inactiveColor,
-        hoverColor: state.pin
-            ? _ToolbarTheme.hoverBlueColor
-            : _ToolbarTheme.hoverInactiveColor,
+        color: _ToolbarTheme.pinBlueColor,
+        hoverColor: _ToolbarTheme.hoverPinBlueColor,
       ),
     );
   }
@@ -3587,11 +3598,19 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
 
   /// Green when it can be used now, grey (and inert) when not, so every button keeps its place.
   Widget _button(VoidCallback? onPressed, IconData icon, String tooltip,
-      {bool enabled = true}) {
+      {bool enabled = true, bool blue = false}) {
     return _IconMenuButton(
       tooltip: enabled ? tooltip : '$tooltip (지금은 사용할 수 없음)',
-      color: enabled ? _ToolbarTheme.blueColor : _disabledColor,
-      hoverColor: enabled ? _ToolbarTheme.hoverBlueColor : _disabledColor,
+      color: !enabled
+          ? _disabledColor
+          : blue
+              ? _ToolbarTheme.pinBlueColor
+              : _ToolbarTheme.blueColor,
+      hoverColor: !enabled
+          ? _disabledColor
+          : blue
+              ? _ToolbarTheme.hoverPinBlueColor
+              : _ToolbarTheme.hoverBlueColor,
       topLevel: false,
       onPressed: enabled ? onPressed : null,
       icon: SizedBox.square(
@@ -3619,6 +3638,13 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
                 _fitRemoteToWindow(widget.ffi);
               }, Icons.desktop_windows_outlined, '내 모니터 전체에 전체화면',
                   enabled: isFullscreen.isFalse)),
+        if (isWindows)
+          Obx(() => _button(() async {
+                await stateGlobal.setFullscreenWorkArea();
+                _fitRemoteToWindow(widget.ffi);
+              }, Icons.call_to_action_outlined,
+                  '전체화면 (내 컴퓨터 작업 표시줄은 보이게)',
+                  enabled: isFullscreen.isFalse, blue: true)),
         Obx(() => _button(() => widget.setFullscreen(false),
             Icons.fullscreen_exit, '전체화면 나가기',
             enabled: isFullscreen.isTrue)),
@@ -3626,11 +3652,6 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
             '화면 맞춤 (창에 딱 맞게 확대/축소)'),
         if (!isMacOS && !isWebDesktop)
           _button(widget.setMinimize, Icons.remove, 'Minimize'),
-        _button(
-          () => widget.toolbarState.switchCollapse(widget.sessionId),
-          _toolbarCollapseIcon(widget.edge.value, false),
-          'Hide Toolbar',
-        ),
       ],
     );
   }

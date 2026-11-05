@@ -88,6 +88,8 @@ class StateGlobal {
         procFullscreenWeb();
       } else if (!v && _spanRestoreFrame != null) {
         _exitSpanFullscreen();
+      } else if (!v && _workAreaMode) {
+        _exitWorkAreaFullscreen();
       } else {
         procFullscreenNative(procWnd);
       }
@@ -161,6 +163,33 @@ class StateGlobal {
   // Whether the span went through the plugin's fullscreen, which then also
   // restores the window.
   bool _spanViaPlugin = false;
+
+  // Fullscreen that keeps the local taskbar usable: the window is maximized (which stops at
+  // the taskbar) with its tab bar hidden, instead of the OS fullscreen that covers the taskbar.
+  bool _workAreaMode = false;
+  bool _workAreaWasMaximized = false;
+
+  Future<void> setFullscreenWorkArea() async {
+    if (_fullscreen.isTrue || isWebDesktop) return;
+    _workAreaWasMaximized = isMaximized.isTrue;
+    _workAreaMode = true;
+    _fullscreen.value = true;
+    _showTabBar.value = false;
+    _hideMainWindowToTray();
+    refreshResizeEdgeSize();
+    _windowBorderWidth.value = 0;
+    if (!_workAreaWasMaximized) {
+      await WindowController.fromWindowId(windowId).maximize();
+    }
+  }
+
+  _exitWorkAreaFullscreen() {
+    _workAreaMode = false;
+    refreshResizeEdgeSize();
+    if (_workAreaWasMaximized) return;
+    _windowBorderWidth.value = kWindowBorderWidth;
+    WindowController.fromWindowId(windowId).unmaximize();
+  }
 
   void _hideMainWindowToTray() {
     if (isDesktop && !isMainDesktopWindow) {
