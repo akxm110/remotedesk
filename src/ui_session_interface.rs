@@ -1822,7 +1822,7 @@ impl<T: InvokeUiSession> Interface for Session<T> {
     }
 
     fn handle_peer_info(&self, mut pi: PeerInfo) {
-        log::debug!("handle_peer_info :{:?}", pi);
+        log::debug!("handle_peer_info: {} ({}), version {}", pi.hostname, pi.platform, pi.version);
         crate::conn_log::add(
             &self.get_id(),
             format!(
