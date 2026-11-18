@@ -8,6 +8,7 @@ import 'package:flutter_hbb/common/widgets/conn_log_dialog.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/peer_power.dart';
 import 'package:flutter_hbb/common/widgets/peer_memo.dart';
+import 'package:flutter_hbb/common/widgets/peer_card_image.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/peer_tab_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -36,7 +37,10 @@ final Map<String, MapEntry<String, Uint8List>> _peerWallpapers = {};
 
 /// The wallpaper the peer sent on its last connection, shown instead of its OS logo.
 Uint8List? peerWallpaperThumb(String id) {
-  final b64 = bind.mainGetPeerOptionSync(id: id, key: 'wallpaper-thumb');
+  var b64 = bind.mainGetPeerOptionSync(id: id, key: kPeerCardImageKey);
+  if (b64.isEmpty) {
+    b64 = bind.mainGetPeerOptionSync(id: id, key: 'wallpaper-thumb');
+  }
   if (b64.isEmpty) return null;
   final cached = _peerWallpapers[id];
   if (cached != null && cached.key == b64) return cached.value;
@@ -89,6 +93,20 @@ class _PeerCardState extends State<_PeerCard>
         stateGlobal.isPortrait.isTrue ? _buildPortrait() : _buildLandscape());
   }
 
+  /// A selected card's ID goes into the main page's "control remote desktop" box, as connecting does.
+  void _showIdInConnectBox(String id) {
+    try {
+      if (Get.isRegistered<IDTextEditingController>()) {
+        Get.find<IDTextEditingController>().text = formatID(id);
+      }
+      if (Get.isRegistered<TextEditingController>()) {
+        Get.find<TextEditingController>().text = formatID(id);
+      }
+    } catch (_) {
+      // The box is only on the main page.
+    }
+  }
+
   Widget gestureDetector({required Widget child}) {
     final PeerTabModel peerTabModel = Provider.of(context);
     final peer = super.widget.peer;
@@ -104,6 +122,7 @@ class _PeerCardState extends State<_PeerCard>
               widget.connect(context, peer.id);
             } else {
               peerTabModel.select(peer);
+              _showIdInConnectBox(peer.id);
             }
           }
         },
@@ -723,6 +742,32 @@ abstract class BasePeerCard extends StatelessWidget {
     );
   }
 
+  @protected
+  MenuEntryBase<String> _cardImageAction(String id) {
+    return MenuEntryButton<String>(
+      childBuilder: (TextStyle? style) => Text('카드 사진 바꾸기…', style: style),
+      proc: () async {
+        if (await pickPeerCardImage(id)) _update();
+      },
+      padding: menuPadding,
+      dismissOnClicked: true,
+    );
+  }
+
+  @protected
+  MenuEntryBase<String> _cardImageResetAction(String id) {
+    return MenuEntryButton<String>(
+      childBuilder: (TextStyle? style) => Text('카드 사진 초기화', style: style),
+      proc: () async {
+        await resetPeerCardImage(id);
+        _update();
+        showToast('카드 사진을 지웠습니다. 다음 접속 때 상대 PC 배경화면으로 다시 채워집니다');
+      },
+      padding: menuPadding,
+      dismissOnClicked: true,
+    );
+  }
+
   /// Only available on Windows.
   @protected
   MenuEntryBase<String> _createShortCutAction(String id) {
@@ -1053,6 +1098,8 @@ class RecentPeerCard extends BasePeerCard {
     }
 
     menuItems.add(_connLogAction(peer.id));
+    menuItems.add(_cardImageAction(peer.id));
+    menuItems.add(_cardImageResetAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;
@@ -1114,6 +1161,8 @@ class FavoritePeerCard extends BasePeerCard {
     }
 
     menuItems.add(_connLogAction(peer.id));
+    menuItems.add(_cardImageAction(peer.id));
+    menuItems.add(_cardImageResetAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;
@@ -1174,6 +1223,8 @@ class DiscoveredPeerCard extends BasePeerCard {
     }
 
     menuItems.add(_connLogAction(peer.id));
+    menuItems.add(_cardImageAction(peer.id));
+    menuItems.add(_cardImageResetAction(peer.id));
     menuItems.add(MenuEntryDivider());
     menuItems.add(_removeAction(peer.id));
     return menuItems;

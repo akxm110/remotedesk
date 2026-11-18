@@ -2314,6 +2314,27 @@ pub fn get_win_key_state() -> bool {
     unsafe { is_win_down() == TRUE }
 }
 
+/// The tray's "quit": ends this user's app windows (main window and remote sessions, which share
+/// its process) and leaves the service and the connection manager running, so the PC stays
+/// reachable and the app opens straight away next time.
+pub fn quit_user_windows() {
+    let script = format!(
+        "$me = Get-Process -Id {pid}; Get-CimInstance Win32_Process -Filter \"Name='{exe}'\" | \
+         Where-Object {{ $_.ProcessId -ne {pid} -and $_.SessionId -eq $me.SessionId -and \
+         $_.CommandLine -notmatch ' --' }} | \
+         ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}",
+        pid = std::process::id(),
+        exe = format!("{}.exe", crate::get_app_name()),
+    );
+    if let Err(err) = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    {
+        log::error!("Failed to close the app windows: {err}");
+    }
+}
+
 pub fn quit_gui() {
     std::process::exit(0);
     // unsafe { PostQuitMessage(0) }; // some how not work

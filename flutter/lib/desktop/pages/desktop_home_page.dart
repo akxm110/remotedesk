@@ -721,6 +721,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   @override
   void initState() {
     super.initState();
+    // Opening the app brings a stopped service back, so it never stays stopped across launches.
+    () async {
+      if (isWindows && await mainGetBoolOption(kOptionStopService)) {
+        await start_service(true);
+      }
+    }();
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
       final error = await bind.mainGetError();

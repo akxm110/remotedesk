@@ -557,7 +557,14 @@ class ServerModel with ChangeNotifier {
         tabController.remove(index_disconnected);
       }
       if (desktopType == DesktopType.cm && !hideCm) {
-        showCmWindow();
+        if (client.authorized) {
+          // Shown only so it sits in the taskbar; raising it is what made it linger on top.
+          Future.sync(() => showCmWindow()).then((_) {
+            if (!hideCm) windowManager.minimize();
+          });
+        } else {
+          showCmWindow();
+        }
       }
       scrollToBottom();
       notifyListeners();
@@ -575,12 +582,18 @@ class ServerModel with ChangeNotifier {
         closable: false,
         onTap: () {},
         page: desktop.buildConnectionCard(client)));
-    Future.delayed(Duration.zero, () async {
-      if (!hideCm) windowOnTop(null);
-    });
+    // An accepted connection needs nothing from this window, so it is not raised and goes to
+    // the taskbar at once; one still waiting for approval comes to the front.
+    final accepted = client.authorized && isDesktop;
+    if (!accepted) {
+      Future.delayed(Duration.zero, () async {
+        if (!hideCm) windowOnTop(null);
+      });
+    }
     // Only do the hidden task when on Desktop.
-    if (client.authorized && isDesktop) {
-      cmHiddenTimer = Timer(const Duration(seconds: 3), () {
+    if (accepted) {
+      cmHiddenTimer?.cancel();
+      cmHiddenTimer = Timer(const Duration(milliseconds: 300), () {
         if (!hideCm) windowManager.minimize();
         cmHiddenTimer = null;
       });

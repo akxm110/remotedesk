@@ -80,6 +80,11 @@ fn make_tray() -> hbb_common::ResultType<()> {
     } else {
         tray_menu.append_items(&[&open_i]).ok();
     }
+    // Closes the app but not the service, unlike "Stop service".
+    #[cfg(windows)]
+    let exit_i = MenuItem::new("종료", true, None);
+    #[cfg(windows)]
+    tray_menu.insert(&exit_i, 1).ok();
     let tooltip = |count: usize| {
         if count == 0 {
             format!(
@@ -188,6 +193,17 @@ fn make_tray() -> hbb_common::ResultType<()> {
         }
 
         if let Ok(event) = menu_channel.try_recv() {
+            #[cfg(windows)]
+            if event.id == exit_i.id() {
+                let _ = _tray_icon
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .map(|t| t.set_visible(false));
+                crate::platform::quit_user_windows();
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
             if let Some(quit_i) = &quit_i {
                 if event.id == quit_i.id() {
                     /* failed in windows, seems no permission to check system process

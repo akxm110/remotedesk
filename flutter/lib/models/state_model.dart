@@ -171,15 +171,61 @@ class StateGlobal {
 
   Future<void> setFullscreenWorkArea() async {
     if (_fullscreen.isTrue || isWebDesktop) return;
-    _workAreaWasMaximized = isMaximized.isTrue;
+    final wc = WindowController.fromWindowId(windowId);
+    // Ask the window itself: the cached flag misses maximize changes made by Windows (snap,
+    // a fullscreen exit), and trusting a stale "maximized" left the bar hidden on a small window.
+    try {
+      _workAreaWasMaximized = await wc.isMaximized();
+    } catch (_) {
+      _workAreaWasMaximized = false;
+    }
     _workAreaMode = true;
     _fullscreen.value = true;
     _showTabBar.value = false;
     _hideMainWindowToTray();
     refreshResizeEdgeSize();
     _windowBorderWidth.value = 0;
-    if (!_workAreaWasMaximized) {
-      await WindowController.fromWindowId(windowId).maximize();
+    for (var i = 0; i < 3; i++) {
+      try {
+        if (await wc.isMaximized()) return;
+        await wc.maximize();
+      } catch (_) {
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (!_workAreaMode) return;
+    }
+  }
+
+  /// The screen mode in use, for the toolbar: 'window', 'full', 'span' or 'work'.
+  String get screenMode => _fullscreen.isFalse
+      ? 'window'
+      : _workAreaMode
+          ? 'work'
+          : _spanRestoreFrame != null
+              ? 'span'
+              : 'full';
+
+  /// Goes straight from the mode in use to [target], leaving the current fullscreen first and
+  /// letting the window settle, so no mode needs a stop in window mode on the way.
+  Future<void> switchScreenMode(String target) async {
+    if (isWebDesktop || screenMode == target) return;
+    if (_fullscreen.isTrue) {
+      final wasNative = !_workAreaMode;
+      setFullscreen(false);
+      if (target == 'window') return;
+      await Future.delayed(Duration(milliseconds: wasNative ? 700 : 300));
+    }
+    switch (target) {
+      case 'full':
+        setFullscreen(true);
+        break;
+      case 'span':
+        await setFullscreenAllMonitors();
+        break;
+      case 'work':
+        await setFullscreenWorkArea();
+        break;
     }
   }
 

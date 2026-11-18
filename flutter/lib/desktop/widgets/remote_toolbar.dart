@@ -821,7 +821,8 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       }
       return Offstage(
         offstage: _dragging.isTrue,
-        child: Material(
+        child: _HalfOpaqueUntilHover(
+            child: Material(
           elevation: _ToolbarTheme.elevation,
           shadowColor: MyTheme.color(context).shadow,
           borderRadius: borderRadius,
@@ -845,7 +846,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
             setMinimize: _minimize,
             borderRadius: borderRadius,
           ),
-        ),
+        )),
       );
     });
   }
@@ -3630,23 +3631,28 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildDraggable(context),
-        Obx(() => _button(() => widget.setFullscreen(true), Icons.fullscreen,
-            '전체화면', enabled: isFullscreen.isFalse)),
+        // Only the mode in use is grey; any other is one click away from any mode.
+        Obx(() => _button(() => stateGlobal.switchScreenMode('full'),
+            Icons.fullscreen, '전체화면',
+            enabled: isFullscreen.isFalse || stateGlobal.screenMode != 'full')),
         if (!isMacOS && !isWebDesktop)
           Obx(() => _button(() async {
-                await stateGlobal.setFullscreenAllMonitors();
+                await stateGlobal.switchScreenMode('span');
                 _fitRemoteToWindow(widget.ffi);
               }, Icons.desktop_windows_outlined, '내 모니터 전체에 전체화면',
-                  enabled: isFullscreen.isFalse)),
+                  enabled: isFullscreen.isFalse ||
+                      stateGlobal.screenMode != 'span')),
         if (isWindows)
           Obx(() => _button(() async {
-                await stateGlobal.setFullscreenWorkArea();
+                await stateGlobal.switchScreenMode('work');
                 _fitRemoteToWindow(widget.ffi);
               }, Icons.call_to_action_outlined,
                   '전체화면 (내 컴퓨터 작업 표시줄은 보이게)',
-                  enabled: isFullscreen.isFalse, blue: true)),
-        Obx(() => _button(() => widget.setFullscreen(false),
-            Icons.fullscreen_exit, '전체화면 나가기',
+                  enabled: isFullscreen.isFalse ||
+                      stateGlobal.screenMode != 'work',
+                  blue: true)),
+        Obx(() => _button(() => stateGlobal.switchScreenMode('window'),
+            Icons.fullscreen_exit, '창 모드 (전체화면 나가기)',
             enabled: isFullscreen.isTrue)),
         _button(() => _fitRemoteToWindow(widget.ffi), Icons.fit_screen_outlined,
             '화면 맞춤 (창에 딱 맞게 확대/축소)'),
@@ -3680,6 +3686,32 @@ class _DraggableShowHideState extends State<_DraggableShowHide> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The collapsed toolbar's handle sits over the remote screen: half see-through until the mouse is on it.
+class _HalfOpaqueUntilHover extends StatefulWidget {
+  final Widget child;
+  const _HalfOpaqueUntilHover({required this.child});
+
+  @override
+  State<_HalfOpaqueUntilHover> createState() => _HalfOpaqueUntilHoverState();
+}
+
+class _HalfOpaqueUntilHoverState extends State<_HalfOpaqueUntilHover> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedOpacity(
+        opacity: _hover ? 1.0 : 0.5,
+        duration: const Duration(milliseconds: 150),
+        child: widget.child,
       ),
     );
   }
